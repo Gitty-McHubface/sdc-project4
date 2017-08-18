@@ -56,7 +56,7 @@ def mag_thresh(image, sobel_kernel=3, mag_thresh=(0, 255)):
     return mag_binary
 
 
-def dir_threshold(image, sobel_kernel=3, thresh=(0, np.pi/2)):
+def dir_thresh(image, sobel_kernel=3, thresh=(0, np.pi / 2)):
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
     
     sobelx = np.absolute(cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=sobel_kernel))
@@ -66,7 +66,41 @@ def dir_threshold(image, sobel_kernel=3, thresh=(0, np.pi/2)):
     dir_binary = np.zeros_like(dir_rads)
     dir_binary[(dir_rads >= thresh[0]) & (dir_rads <= thresh[1])] = 1
 
-    return dir_binary
+    return dir_binary.astype(np.uint8)
+
+
+def hls_thresh(image, hls_channel='s', thresh=(0, 255)):
+    hls = cv2.cvtColor(image, cv2.COLOR_RGB2HLS)
+
+    if hls_channel == 'h':
+        channel = hls[:,:,0]
+    elif hls_channel == 'l':
+        channel = hls[:,:,1]
+    elif hls_channel == 's':
+        channel = hls[:,:,2]
+    else:
+        raise Exception('hls_channel must be h, l or s')
+
+    channel_binary = np.zeros_like(channel)
+    channel_binary[(channel > thresh[0]) & (channel <= thresh[1])] = 1
+        
+    return channel_binary
+
+
+def rgb_thresh(image, rgb_channel='r', thresh=(0, 255)):
+    if rgb_channel == 'r':
+        channel = image[:,:,0]
+    elif rgb_channel == 'g':
+        channel = image[:,:,1]
+    elif rgb_channel == 'b':
+        channel = image[:,:,2]
+    else:
+        raise Exception('rgb_channel must be r, g or b')
+
+    channel_binary = np.zeros_like(channel)
+    channel_binary[(channel > thresh[0]) & (channel <= thresh[1])] = 1
+
+    return channel_binary
 
 
 def main():
@@ -78,30 +112,47 @@ def main():
     if not mtx.size or not dist.size:
         mtx, dist = calibrate_camera('./camera_cal')
 
-    image = cv2.imread('./test_images/test4.jpg')
+    image = cv2.imread('./test_images/test6.jpg')
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     undist = cv2.undistort(image, mtx, dist, None, mtx)
-    plt.imshow(image)
-    plt.show()
-    plt.imshow(undist)
-    plt.show()
 
-    ksize = 3
+    ksize = 5
     gradx = abs_sobel_thresh(undist, orient='x', sobel_kernel=ksize, thresh=(30, 150))
     grady = abs_sobel_thresh(undist, orient='y', sobel_kernel=ksize, thresh=(50, 130))
     magnitude = mag_thresh(undist, sobel_kernel=ksize, mag_thresh=(30, 100))
-    direction = dir_threshold(undist, sobel_kernel=ksize, thresh=(0.7, 1.3))
+    direction = dir_thresh(undist, sobel_kernel=ksize, thresh=(0.8, 1.2))
 
-    combined = np.zeros_like(direction)
-    combined[((gradx == 1) & (grady == 1)) | ((magnitude == 1) & (direction == 1))] = 1
+    h = hls_thresh(undist, 'h', thresh=(19, 30))
+    s = hls_thresh(undist, 's', thresh=(160, 255))
+    r = rgb_thresh(undist, 'r', (220, 255))
+    c = s | r
+    combined = (gradx & grady) | (magnitude & direction)
 
-    plt.imshow(gradx, cmap='gray') 
+    plt.imshow(magnitude, cmap='gray')
     plt.show()
 
-    plt.imshow(grady, cmap='gray') 
+    plt.imshow(gradx & grady, cmap='gray')
     plt.show()
 
-#    plt.imshow(combined, cmap='gray') 
+    plt.imshow(combined | c, cmap='gray')
+    plt.show()
+
+#    plt.imshow(gradx, cmap='gray') 
+#    plt.show()
+#
+#    plt.imshow(grady, cmap='gray') 
+#    plt.show()
+
+#    plt.imshow(h, cmap='gray') 
+#    plt.show()
+#
+#    plt.imshow(s, cmap='gray') 
+#    plt.show()
+#
+#    plt.imshow(r, cmap='gray') 
+#    plt.show()
+#
+#    plt.imshow(h | s | r, cmap='gray') 
 #    plt.show()
 
 
