@@ -6,7 +6,7 @@ import glob
 import os
 
 
-DEBUG = False
+DEBUG = True
 
 
 def calibrate_camera(calibration_dir, file_pattern='calibration*.jpg'):
@@ -76,7 +76,7 @@ def dir_thresh(image, sobel_kernel=3, thresh=(0, np.pi / 2)):
     
     dir_rads = np.arctan2(sobely, sobelx)
     print('DIR RADS')
-    print(dir_rads)
+    print(dir_rads[dir_rads > np.pi / 2])
     dir_binary = np.zeros_like(dir_rads)
     dir_binary[(dir_rads >= thresh[0]) & (dir_rads <= thresh[1])] = 1
 
@@ -176,7 +176,7 @@ def main():
     if not mtx.size or not dist.size:
         mtx, dist = calibrate_camera('./camera_cal')
 
-    image = cv2.imread('./test_images/test1.jpg')
+    image = cv2.imread('./test_images/test5.jpg')
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     undist = cv2.undistort(image, mtx, dist, None, mtx)
 
@@ -185,7 +185,7 @@ def main():
 
     ksize = 3
     gradx = abs_sobel_thresh(undist, orient='x', sobel_kernel=ksize, thresh=(30, 180))
-    grady = abs_sobel_thresh(undist, orient='y', sobel_kernel=ksize, thresh=(180, 255))
+    grady = abs_sobel_thresh(undist, orient='y', sobel_kernel=ksize, thresh=(80, 255))
     magnitude = mag_thresh(undist, sobel_kernel=ksize, mag_thresh=(60, 255))
     direction = dir_thresh(undist, sobel_kernel=ksize, thresh=(0.9, 1.3))
     h = hls_thresh(undist, 'h', thresh=(19, 30))
@@ -194,63 +194,57 @@ def main():
 
 #    np.set_printoptions(threshold=np.nan)
 #    print(gradx[((gradx > 0) & (gradx < 1)) | (gradx > 1)])
-    plt.imshow(gradx, cmap='gray')
-    print('gradx')
-    plt.show()
+    if DEBUG:
+        plt.imshow(gradx, cmap='gray')
+        print('gradx')
+        plt.show()
 
-    plt.imshow(grady, cmap='gray')
-    print('grady')
-    plt.show()
-#
-#    plt.imshow(h, cmap='gray') 
-#    print('h')
-#    plt.show()
-#
-#    plt.imshow(s, cmap='gray') 
-#    print('s')
-#    plt.show()
-#
-#    plt.imshow(h & s, cmap='gray') 
-#    print('h & s')
-#    plt.show()
-#
-#    plt.imshow(r, cmap='gray') 
-#    print('r')
-#    plt.show()
-#
-#    plt.imshow((h & s) | r, cmap='gray') 
-#    print('h & s | r')
-#    plt.show()
-#
-#    plt.imshow(magnitude, cmap='gray') 
-#    print('magnitude')
-#    plt.show()
-#
-#    plt.imshow(direction, cmap='gray') 
-#    print('direction')
-#    plt.show()
-#
-#    plt.imshow(magnitude & direction, cmap='gray') 
-#    print('magnitude & direction')
-#    plt.show()
-#
-#    plt.imshow(combined, cmap='gray')
-#    print('combined')
-#    plt.show()
+        plt.imshow(h, cmap='gray') 
+        print('h')
+        plt.show()
+
+        plt.imshow(s, cmap='gray') 
+        print('s')
+        plt.show()
+
+        plt.imshow(h & s, cmap='gray') 
+        print('h & s')
+        plt.show()
+
+        plt.imshow(r, cmap='gray') 
+        print('r')
+        plt.show()
+
+        plt.imshow(magnitude, cmap='gray') 
+        print('magnitude')
+        plt.show()
+
+        plt.imshow(direction, cmap='gray') 
+        print('direction')
+        plt.show()
+
+        plt.imshow(magnitude & direction, cmap='gray') 
+        print('magnitude & direction')
+        plt.show()
 
     vertices = np.array([[(650, 400),(1200, 720),(100, 720),(650, 400)]], dtype=np.int32)
-
-    combined =  gradx | (h & s) | r 
-    masked = region_of_interest(combined, vertices)
-    plt.imshow(masked, cmap='gray')
-    plt.show()
-
-    warped = warp(masked)
-    plt.imshow(warped, cmap='gray')
-    plt.show()
-
     combined =  gradx | (h & s) | r | (magnitude & direction)
+    
+    if DEBUG:
+        plt.imshow(combined, cmap='gray')
+        print('combined')
+        plt.show()
+
+    masked = region_of_interest(combined, vertices)
+
+    if DEBUG:
+        print('masked')
+        plt.imshow(masked, cmap='gray')
+        plt.show()
+
     warped = warp(masked)
+
+    print('warped')
     plt.imshow(warped, cmap='gray')
     plt.show()
 
