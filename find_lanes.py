@@ -6,6 +6,9 @@ import glob
 import os
 
 
+DEBUG = False
+
+
 def calibrate_camera(calibration_dir, file_pattern='calibration*.jpg'):
     imgpoints = []
     objpoints = []
@@ -27,6 +30,7 @@ def calibrate_camera(calibration_dir, file_pattern='calibration*.jpg'):
 
 
 def abs_sobel_thresh(image, orient='x', sobel_kernel=3, thresh=(0, 255)):
+    image = cv2.GaussianBlur(image, (3, 3), 0);
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
 
     if orient == 'x':
@@ -37,9 +41,17 @@ def abs_sobel_thresh(image, orient='x', sobel_kernel=3, thresh=(0, 255)):
     abs_sobel = np.absolute(sobel)
     scaled = np.uint8(255 * abs_sobel / np.max(abs_sobel))
     
+# 1 - Simple Thresholding
     grad_binary = np.zeros_like(scaled)
     grad_binary[(scaled >= thresh[0]) & (scaled <= thresh[1])] = 1
-    
+#
+# 2 - Adaptive Thresholding
+#    grad_binary = cv2.adaptiveThreshold(scaled, 1, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 5, 4) 
+#
+# 3 - Otsu's Binarization
+#    blur = cv2.GaussianBlur(scaled,(3,3),0)
+#    ret, grad_binary = cv2.threshold(blur, 0, 1, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
     return grad_binary
 
 
@@ -63,6 +75,8 @@ def dir_thresh(image, sobel_kernel=3, thresh=(0, np.pi / 2)):
     sobely = np.absolute(cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=sobel_kernel))
     
     dir_rads = np.arctan2(sobely, sobelx)
+    print('DIR RADS')
+    print(dir_rads)
     dir_binary = np.zeros_like(dir_rads)
     dir_binary[(dir_rads >= thresh[0]) & (dir_rads <= thresh[1])] = 1
 
@@ -103,6 +117,56 @@ def rgb_thresh(image, rgb_channel='r', thresh=(0, 255)):
     return channel_binary
 
 
+def warp(image):
+    src = np.float32([[688, 448],
+                      [1126, 720],
+                      [188, 720],
+                      [594, 448]])
+
+    if DEBUG:
+        plt.imshow(image, cmap='gray')
+        pltsrc = src.astype(np.uint8)
+        plt.plot((688, 1126), (448, 720), 'r')
+        plt.plot((1126, 188), (720, 720), 'r')
+        plt.plot((188, 594), (720, 448), 'r')
+        plt.plot((594, 688), (448, 448), 'r')
+        plt.show()
+
+    dst = np.float32([[980, 0],
+                      [980, 720],
+                      [320, 720],
+                      [320, 0]])
+
+    m = cv2.getPerspectiveTransform(src, dst)
+    warped = cv2.warpPerspective(image, m, (image.shape[1], image.shape[0]), flags=cv2.INTER_LINEAR)
+    return warped
+
+
+def region_of_interest(img, vertices):
+    """
+    Applies an image mask.
+    
+    Only keeps the region of the image defined by the polygon
+    formed from `vertices`. The rest of the image is set to black.
+    """
+    #defining a blank mask to start with
+    mask = np.zeros_like(img)   
+    
+    #defining a 3 channel or 1 channel color to fill the mask with depending on the input image
+    if len(img.shape) > 2:
+        channel_count = img.shape[2]  # i.e. 3 or 4 depending on your image
+        ignore_mask_color = (255,) * channel_count
+    else:
+        ignore_mask_color = 255
+        
+    #filling pixels inside the polygon defined by "vertices" with the fill color    
+    cv2.fillPoly(mask, vertices, ignore_mask_color)
+    
+    #returning the image only where mask pixels are nonzero
+    masked_image = cv2.bitwise_and(img, mask)
+    return masked_image
+
+    
 def main():
     mtx = np.array([[  1.15158804e+03,   0.00000000e+00,   6.66167057e+02],
                     [  0.00000000e+00,   1.14506859e+03,   3.86440204e+02],
@@ -112,48 +176,83 @@ def main():
     if not mtx.size or not dist.size:
         mtx, dist = calibrate_camera('./camera_cal')
 
-    image = cv2.imread('./test_images/test6.jpg')
+    image = cv2.imread('./test_images/test1.jpg')
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     undist = cv2.undistort(image, mtx, dist, None, mtx)
 
-    ksize = 5
-    gradx = abs_sobel_thresh(undist, orient='x', sobel_kernel=ksize, thresh=(30, 150))
-    grady = abs_sobel_thresh(undist, orient='y', sobel_kernel=ksize, thresh=(50, 130))
-    magnitude = mag_thresh(undist, sobel_kernel=ksize, mag_thresh=(30, 100))
-    direction = dir_thresh(undist, sobel_kernel=ksize, thresh=(0.8, 1.2))
+    plt.imshow(undist)
+    plt.show()
 
+    ksize = 3
+    gradx = abs_sobel_thresh(undist, orient='x', sobel_kernel=ksize, thresh=(30, 180))
+    grady = abs_sobel_thresh(undist, orient='y', sobel_kernel=ksize, thresh=(180, 255))
+    magnitude = mag_thresh(undist, sobel_kernel=ksize, mag_thresh=(60, 255))
+    direction = dir_thresh(undist, sobel_kernel=ksize, thresh=(0.9, 1.3))
     h = hls_thresh(undist, 'h', thresh=(19, 30))
     s = hls_thresh(undist, 's', thresh=(160, 255))
     r = rgb_thresh(undist, 'r', (220, 255))
-    c = s | r
-    combined = (gradx & grady) | (magnitude & direction)
 
-    plt.imshow(magnitude, cmap='gray')
+#    np.set_printoptions(threshold=np.nan)
+#    print(gradx[((gradx > 0) & (gradx < 1)) | (gradx > 1)])
+    plt.imshow(gradx, cmap='gray')
+    print('gradx')
     plt.show()
 
-    plt.imshow(gradx & grady, cmap='gray')
+    plt.imshow(grady, cmap='gray')
+    print('grady')
     plt.show()
-
-    plt.imshow(combined | c, cmap='gray')
-    plt.show()
-
-#    plt.imshow(gradx, cmap='gray') 
-#    plt.show()
 #
-#    plt.imshow(grady, cmap='gray') 
-#    plt.show()
-
 #    plt.imshow(h, cmap='gray') 
+#    print('h')
 #    plt.show()
 #
 #    plt.imshow(s, cmap='gray') 
+#    print('s')
+#    plt.show()
+#
+#    plt.imshow(h & s, cmap='gray') 
+#    print('h & s')
 #    plt.show()
 #
 #    plt.imshow(r, cmap='gray') 
+#    print('r')
 #    plt.show()
 #
-#    plt.imshow(h | s | r, cmap='gray') 
+#    plt.imshow((h & s) | r, cmap='gray') 
+#    print('h & s | r')
 #    plt.show()
+#
+#    plt.imshow(magnitude, cmap='gray') 
+#    print('magnitude')
+#    plt.show()
+#
+#    plt.imshow(direction, cmap='gray') 
+#    print('direction')
+#    plt.show()
+#
+#    plt.imshow(magnitude & direction, cmap='gray') 
+#    print('magnitude & direction')
+#    plt.show()
+#
+#    plt.imshow(combined, cmap='gray')
+#    print('combined')
+#    plt.show()
+
+    vertices = np.array([[(650, 400),(1200, 720),(100, 720),(650, 400)]], dtype=np.int32)
+
+    combined =  gradx | (h & s) | r 
+    masked = region_of_interest(combined, vertices)
+    plt.imshow(masked, cmap='gray')
+    plt.show()
+
+    warped = warp(masked)
+    plt.imshow(warped, cmap='gray')
+    plt.show()
+
+    combined =  gradx | (h & s) | r | (magnitude & direction)
+    warped = warp(masked)
+    plt.imshow(warped, cmap='gray')
+    plt.show()
 
 
 if __name__ == '__main__':
