@@ -6,14 +6,16 @@ import glob
 import os
 
 
-DEBUG = True
+DEBUG_IMAGE = False
+USE_SAVED_CORRECTION = False
+TEST_IMAGE = './test_images/test5.jpg'
 
 
 def calibrate_camera(calibration_dir, file_pattern='calibration*.jpg'):
     imgpoints = []
     objpoints = []
 
-    objp = np.zeros((6*9, 3), np.float32)
+    objp = np.zeros((6 * 9, 3), np.float32)
     objp[:,:2] = np.mgrid[0:9, 0:6].T.reshape(-1, 2)
 
     for image_file in glob.glob(os.path.join(calibration_dir, file_pattern)):
@@ -30,7 +32,7 @@ def calibrate_camera(calibration_dir, file_pattern='calibration*.jpg'):
 
 
 def abs_sobel_thresh(image, orient='x', sobel_kernel=3, thresh=(0, 255)):
-    image = cv2.GaussianBlur(image, (3, 3), 0);
+    image = cv2.GaussianBlur(image, (5, 5), 0);
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
 
     if orient == 'x':
@@ -75,8 +77,6 @@ def dir_thresh(image, sobel_kernel=3, thresh=(0, np.pi / 2)):
     sobely = np.absolute(cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=sobel_kernel))
     
     dir_rads = np.arctan2(sobely, sobelx)
-    print('DIR RADS')
-    print(dir_rads[dir_rads > np.pi / 2])
     dir_binary = np.zeros_like(dir_rads)
     dir_binary[(dir_rads >= thresh[0]) & (dir_rads <= thresh[1])] = 1
 
@@ -124,12 +124,12 @@ def warp(image, src=None, dst=None):
                           [188, 720],
                           [594, 448]])
 
-        dst = np.float32([[980, 0],
-                          [980, 720],
-                          [320, 720],
-                          [320, 0]])
+        dst = np.float32([[920, 0],
+                          [920, 720],
+                          [340, 720],
+                          [340, 0]])
 
-    if DEBUG:
+    if DEBUG_IMAGE:
         plt.imshow(image, cmap='gray')
         pltsrc = src.astype(np.uint8)
         plt.plot((688, 1126), (448, 720), 'r')
@@ -167,38 +167,19 @@ def region_of_interest(img, vertices):
     masked_image = cv2.bitwise_and(img, mask)
     return masked_image
 
-    
-def main():
-    mtx = np.array([])
-    dist = np.array([])
-    #if DEBUG:
-    #    mtx = np.array([[  1.15158804e+03,   0.00000000e+00,   6.66167057e+02],
-    #                    [  0.00000000e+00,   1.14506859e+03,   3.86440204e+02],
-    #                    [  0.00000000e+00,   0.00000000e+00,   1.00000000e+00]])
-    #    dist = np.array([[ -2.35510339e-01,  -7.90388401e-02,  -1.28492202e-03,
-    #                       8.25970342e-05,   7.22743174e-02]])
-    if not mtx.size or not dist.size:
-        mtx, dist = calibrate_camera('./camera_cal')
 
-    image = cv2.imread('./test_images/straight_lines1.jpg')
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    undist = cv2.undistort(image, mtx, dist, None, mtx)
-
-    plt.imshow(undist)
-    plt.show()
-
-    ksize = 3
-    gradx = abs_sobel_thresh(undist, orient='x', sobel_kernel=ksize, thresh=(30, 180))
-    grady = abs_sobel_thresh(undist, orient='y', sobel_kernel=ksize, thresh=(80, 255))
-    magnitude = mag_thresh(undist, sobel_kernel=ksize, mag_thresh=(60, 255))
-    direction = dir_thresh(undist, sobel_kernel=ksize, thresh=(0.9, 1.3))
-    h = hls_thresh(undist, 'h', thresh=(19, 30))
-    s = hls_thresh(undist, 's', thresh=(160, 255))
-    r = rgb_thresh(undist, 'r', (220, 255))
+def image_pipeline(image, ksize=3):
+    gradx = abs_sobel_thresh(image, orient='x', sobel_kernel=ksize, thresh=(30, 180))
+    grady = abs_sobel_thresh(image, orient='y', sobel_kernel=ksize, thresh=(80, 255))
+    magnitude = mag_thresh(image, sobel_kernel=ksize, mag_thresh=(60, 255))
+    direction = dir_thresh(image, sobel_kernel=ksize, thresh=(0.9, 1.3))
+    h = hls_thresh(image, 'h', thresh=(19, 30))
+    s = hls_thresh(image, 's', thresh=(160, 255))
+    r = rgb_thresh(image, 'r', (220, 255))
 
 #    np.set_printoptions(threshold=np.nan)
 #    print(gradx[((gradx > 0) & (gradx < 1)) | (gradx > 1)])
-    if DEBUG:
+    if DEBUG_IMAGE:
         plt.imshow(gradx, cmap='gray')
         print('gradx')
         plt.show()
@@ -231,26 +212,47 @@ def main():
         print('magnitude & direction')
         plt.show()
 
-    vertices = np.array([[(650, 400),(1200, 720),(100, 720),(650, 400)]], dtype=np.int32)
     combined =  gradx | (h & s) | r | (magnitude & direction)
     
-    if DEBUG:
+    if DEBUG_IMAGE:
         plt.imshow(combined, cmap='gray')
         print('combined')
         plt.show()
 
-    masked = region_of_interest(combined, vertices)
+    roi = np.array([[(650, 400),(1200, 720),(100, 720),(650, 400)]], dtype=np.int32)
+    masked = region_of_interest(combined, roi)
 
-    if DEBUG:
+    if DEBUG_IMAGE:
         print('masked')
         plt.imshow(masked, cmap='gray')
         plt.show()
 
     warped = warp(masked)
+    return warped
+   
+    
+def main():
+    mtx = np.array([])
+    dist = np.array([])
+    if USE_SAVED_CORRECTION:
+        mtx = np.array([[  1.15158804e+03,   0.00000000e+00,   6.66167057e+02],
+                        [  0.00000000e+00,   1.14506859e+03,   3.86440204e+02],
+                        [  0.00000000e+00,   0.00000000e+00,   1.00000000e+00]])
+        dist = np.array([[ -2.35510339e-01,  -7.90388401e-02,  -1.28492202e-03,
+                           8.25970342e-05,   7.22743174e-02]])
+    if not mtx.size or not dist.size:
+        mtx, dist = calibrate_camera('./camera_cal')
 
-    print('warped')
-    plt.imshow(warped, cmap='gray')
+    image = cv2.imread(TEST_IMAGE)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    undist = cv2.undistort(image, mtx, dist, None, mtx)
+    plt.imshow(undist)
     plt.show()
+    
+    overhead = image_pipeline(undist)
+    plt.imshow(overhead, cmap='gray')
+    plt.show()
+
 
 
 if __name__ == '__main__':
