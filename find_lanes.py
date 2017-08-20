@@ -5,9 +5,10 @@ import cv2
 import glob
 import os
 
+CALIBRATION_DIR = './camera_cal'
 
-DEBUG_IMAGE = False
-USE_SAVED_CORRECTION = False
+DEBUG_IMAGE = True
+USE_SAVED_CORRECTION = True
 TEST_IMAGE = './test_images/test5.jpg'
 
 
@@ -43,17 +44,16 @@ def abs_sobel_thresh(image, orient='x', sobel_kernel=3, thresh=(0, 255)):
     abs_sobel = np.absolute(sobel)
     scaled = np.uint8(255 * abs_sobel / np.max(abs_sobel))
     
-# 1 - Simple Thresholding
+#   1 - Simple Thresholding
     grad_binary = np.zeros_like(scaled)
     grad_binary[(scaled >= thresh[0]) & (scaled <= thresh[1])] = 1
 #
-# 2 - Adaptive Thresholding
+#   2 - Adaptive Thresholding
 #    grad_binary = cv2.adaptiveThreshold(scaled, 1, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 5, 4) 
 #
-# 3 - Otsu's Binarization
+#   3 - Otsu's Binarization
 #    blur = cv2.GaussianBlur(scaled,(3,3),0)
 #    ret, grad_binary = cv2.threshold(blur, 0, 1, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
     return grad_binary
 
 
@@ -129,17 +129,25 @@ def warp(image, src=None, dst=None):
                           [340, 720],
                           [340, 0]])
 
+
+    m = cv2.getPerspectiveTransform(src, dst)
+    warped = cv2.warpPerspective(image, m, (image.shape[1], image.shape[0]), flags=cv2.INTER_LINEAR)
+
     if DEBUG_IMAGE:
         plt.imshow(image, cmap='gray')
-        pltsrc = src.astype(np.uint8)
         plt.plot((688, 1126), (448, 720), 'r')
         plt.plot((1126, 188), (720, 720), 'r')
         plt.plot((188, 594), (720, 448), 'r')
         plt.plot((594, 688), (448, 448), 'r')
         plt.show()
 
-    m = cv2.getPerspectiveTransform(src, dst)
-    warped = cv2.warpPerspective(image, m, (image.shape[1], image.shape[0]), flags=cv2.INTER_LINEAR)
+        plt.imshow(warped, cmap='gray')
+        plt.plot((920, 920), (0, 720), 'r')
+        plt.plot((920, 340), (720, 720), 'r')
+        plt.plot((340, 340), (0, 720), 'r')
+        plt.plot((340, 920), (0, 0), 'r')
+        plt.show()
+
     return warped
 
 
@@ -241,7 +249,7 @@ def main():
         dist = np.array([[ -2.35510339e-01,  -7.90388401e-02,  -1.28492202e-03,
                            8.25970342e-05,   7.22743174e-02]])
     if not mtx.size or not dist.size:
-        mtx, dist = calibrate_camera('./camera_cal')
+        mtx, dist = calibrate_camera(CALIBRATION_DIR)
 
     image = cv2.imread(TEST_IMAGE)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
