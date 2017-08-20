@@ -117,11 +117,17 @@ def rgb_thresh(image, rgb_channel='r', thresh=(0, 255)):
     return channel_binary
 
 
-def warp(image):
-    src = np.float32([[688, 448],
-                      [1126, 720],
-                      [188, 720],
-                      [594, 448]])
+def warp(image, src=None, dst=None):
+    if not src or dst:
+        src = np.float32([[688, 448],
+                          [1126, 720],
+                          [188, 720],
+                          [594, 448]])
+
+        dst = np.float32([[980, 0],
+                          [980, 720],
+                          [320, 720],
+                          [320, 0]])
 
     if DEBUG:
         plt.imshow(image, cmap='gray')
@@ -131,11 +137,6 @@ def warp(image):
         plt.plot((188, 594), (720, 448), 'r')
         plt.plot((594, 688), (448, 448), 'r')
         plt.show()
-
-    dst = np.float32([[980, 0],
-                      [980, 720],
-                      [320, 720],
-                      [320, 0]])
 
     m = cv2.getPerspectiveTransform(src, dst)
     warped = cv2.warpPerspective(image, m, (image.shape[1], image.shape[0]), flags=cv2.INTER_LINEAR)
@@ -168,15 +169,18 @@ def region_of_interest(img, vertices):
 
     
 def main():
-    mtx = np.array([[  1.15158804e+03,   0.00000000e+00,   6.66167057e+02],
-                    [  0.00000000e+00,   1.14506859e+03,   3.86440204e+02],
-                    [  0.00000000e+00,   0.00000000e+00,   1.00000000e+00]])
-    dist = np.array([[ -2.35510339e-01,  -7.90388401e-02,  -1.28492202e-03,
-                       8.25970342e-05,   7.22743174e-02]])
+    mtx = np.array([])
+    dist = np.array([])
+    #if DEBUG:
+    #    mtx = np.array([[  1.15158804e+03,   0.00000000e+00,   6.66167057e+02],
+    #                    [  0.00000000e+00,   1.14506859e+03,   3.86440204e+02],
+    #                    [  0.00000000e+00,   0.00000000e+00,   1.00000000e+00]])
+    #    dist = np.array([[ -2.35510339e-01,  -7.90388401e-02,  -1.28492202e-03,
+    #                       8.25970342e-05,   7.22743174e-02]])
     if not mtx.size or not dist.size:
         mtx, dist = calibrate_camera('./camera_cal')
 
-    image = cv2.imread('./test_images/test5.jpg')
+    image = cv2.imread('./test_images/straight_lines1.jpg')
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     undist = cv2.undistort(image, mtx, dist, None, mtx)
 
