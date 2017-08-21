@@ -9,7 +9,7 @@ CALIBRATION_DIR = './camera_cal'
 
 DEBUG_IMAGE = False
 USE_SAVED_CORRECTION = True
-TEST_IMAGE = './test_images/test6.jpg'
+TEST_IMAGE = './test_images/test5.jpg'
 
 
 def calibrate_camera(calibration_dir, file_pattern='calibration*.jpg'):
@@ -227,15 +227,15 @@ def image_pipeline(image, ksize=3):
         print('combined')
         plt.show()
 
-    roi = np.array([[(650, 400),(1200, 720),(100, 720),(650, 400)]], dtype=np.int32)
-    masked = region_of_interest(combined, roi)
+#    roi = np.array([[(650, 400),(1200, 720),(100, 720),(650, 400)]], dtype=np.int32)
+#    masked = region_of_interest(combined, roi)
+#
+#    if DEBUG_IMAGE:
+#        print('masked')
+#        plt.imshow(masked, cmap='gray')
+#        plt.show()
 
-    if DEBUG_IMAGE:
-        print('masked')
-        plt.imshow(masked, cmap='gray')
-        plt.show()
-
-    warped = warp(masked)
+    warped = warp(combined)
     return warped
    
 
@@ -307,9 +307,9 @@ def get_poly(overhead_image):
     right_fit = np.polyfit(righty, rightx, 2)
 
     # Generate x and y values for plotting
-    ploty = np.linspace(0, overhead_image.shape[0]-1, overhead_image.shape[0] )
-    left_fitx = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
-    right_fitx = right_fit[0]*ploty**2 + right_fit[1]*ploty + right_fit[2]
+    ploty = np.linspace(0, overhead_image.shape[0] - 1, overhead_image.shape[0])
+    left_fitx = left_fit[0] * ploty ** 2 + left_fit[1] * ploty + left_fit[2]
+    right_fitx = right_fit[0] * ploty ** 2 + right_fit[1] * ploty + right_fit[2]
 
     out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
     out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
@@ -319,6 +319,24 @@ def get_poly(overhead_image):
     plt.xlim(0, 1280)
     plt.ylim(720, 0)
     plt.show()
+
+    # Define conversions in x and y from pixels space to meters
+    ym_per_pix = 30 / 720 # meters per pixel in y dimension
+    xm_per_pix = 3.7 / 700 # meters per pixel in x dimension
+    
+    print(len(ploty))
+    print(len(leftx))
+    print(len(left_fitx))
+
+    # Fit new polynomials to x,y in world space
+    left_fit_cr = np.polyfit(ploty * ym_per_pix, leftx * xm_per_pix, 2)
+    right_fit_cr = np.polyfit(ploty * ym_per_pix, rightx * xm_per_pix, 2)
+    # Calculate the new radii of curvature
+    left_curverad = ((1 + (2 * left_fit_cr[0] * y_eval * ym_per_pix + left_fit_cr[1]) ** 2) ** 1.5) / np.absolute(2 * left_fit_cr[0])
+    right_curverad = ((1 + (2 * right_fit_cr[0] * y_eval * ym_per_pix + right_fit_cr[1]) ** 2) ** 1.5) / np.absolute(2 * right_fit_cr[0])
+    # Now our radius of curvature is in meters
+    print(left_curverad, 'm', right_curverad, 'm')
+    # Example values: 632.1 m    626.2 m
 
     return (left_fit, right_fit)
 
