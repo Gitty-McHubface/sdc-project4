@@ -8,9 +8,8 @@ import os
 CALIBRATION_DIR = './camera_cal'
 
 DEBUG_IMAGE = False
-DEBUG_FIT = True
+DEBUG_FIT = False
 USE_SAVED_CORRECTION = True
-TEST_IMAGE = './test_images/test5.jpg'
 
 
 def calibrate_camera(calibration_dir, file_pattern='calibration*.jpg'):
@@ -34,7 +33,7 @@ def calibrate_camera(calibration_dir, file_pattern='calibration*.jpg'):
 
 
 def abs_sobel_thresh(image, orient='x', sobel_kernel=3, thresh=(0, 255)):
-#    image = cv2.GaussianBlur(image, (3, 3), 0);
+    image = cv2.GaussianBlur(image, (3, 3), 0);
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
 
     if orient == 'x':
@@ -44,17 +43,17 @@ def abs_sobel_thresh(image, orient='x', sobel_kernel=3, thresh=(0, 255)):
     
     abs_sobel = np.absolute(sobel)
     scaled = np.uint8(255 * abs_sobel / np.max(abs_sobel))
-    
+
 #   1 - Simple Thresholding
-#    grad_binary = np.zeros_like(scaled)
-#    grad_binary[(scaled >= thresh[0]) & (scaled <= thresh[1])] = 1
+    grad_binary = np.zeros_like(scaled)
+    grad_binary[(scaled >= thresh[0]) & (scaled <= thresh[1])] = 1
 #
 #   2 - Adaptive Thresholding
 #    grad_binary = cv2.adaptiveThreshold(scaled, 1, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 5, 4) 
 #
 #   3 - Otsu's Binarization
-    blur = cv2.GaussianBlur(scaled,(3,3),0)
-    ret, grad_binary = cv2.threshold(blur, 0, 1, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+#    blur = cv2.GaussianBlur(scaled,(3,3),0)
+#    ret, grad_binary = cv2.threshold(blur, 0, 1, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     return grad_binary
 
 
@@ -96,6 +95,11 @@ def hls_thresh(image, hls_channel='s', thresh=(0, 255)):
     else:
         raise Exception('hls_channel must be h, l or s')
 
+    if DEBUG_IMAGE:
+        print('hls thresh')
+        plt.imshow(channel, cmap='gray')
+        plt.show()
+
     channel_binary = np.zeros_like(channel)
     channel_binary[(channel > thresh[0]) & (channel <= thresh[1])] = 1
         
@@ -112,9 +116,14 @@ def rgb_thresh(image, rgb_channel='r', thresh=(0, 255)):
     else:
         raise Exception('rgb_channel must be r, g or b')
 
+    if DEBUG_IMAGE:
+        print('rgb thresh')
+        plt.imshow(channel, cmap='gray')
+        plt.show()
+
     channel_binary = np.zeros_like(channel)
     channel_binary[(channel > thresh[0]) & (channel <= thresh[1])] = 1
-
+#    channel_binary = cv2.adaptiveThreshold(channel, 1, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 7, 5) 
     return channel_binary
 
 
@@ -125,11 +134,20 @@ def warp(image, inv=False, src=None, dst=None):
                           [188, 720],
                           [594, 448]])
 
-        dst = np.float32([[980, 0],
-                          [980, 720],
+        dst = np.float32([[960, 0],
+                          [960, 720],
                           [320, 720],
                           [320, 0]])
 
+#        src = np.float32([[585, 460],
+#                          [203, 720],
+#                          [1127, 720],
+#                          [695, 460]])
+#
+#        dst = np.float32([[320, 0],
+#                          [320, 720],
+#                          [960, 720],
+#                          [960, 0]])
 
     if not inv:
         m = cv2.getPerspectiveTransform(src, dst)
@@ -145,12 +163,18 @@ def warp(image, inv=False, src=None, dst=None):
         plt.plot((188, 594), (720, 448), 'r')
         plt.plot((594, 688), (448, 448), 'r')
         plt.show()
+#        plt.imshow(image, cmap='gray')
+#        plt.plot((585, 203), (460, 720), 'r')
+#        plt.plot((203, 1127), (720, 720), 'r')
+#        plt.plot((1127, 695), (720, 460), 'r')
+#        plt.plot((695, 585), (460, 460), 'r')
+#        plt.show()
 
         plt.imshow(warped, cmap='gray')
-        plt.plot((980, 980), (0, 720), 'r')
-        plt.plot((980, 320), (720, 720), 'r')
-        plt.plot((320, 320), (0, 720), 'r')
-        plt.plot((320, 980), (0, 0), 'r')
+        plt.plot((960, 960), (0, 720), 'r')
+        plt.plot((960, 320), (720, 720), 'r')
+        plt.plot((320, 320), (720, 0), 'r')
+        plt.plot((320, 960), (0, 0), 'r')
         plt.show()
 
     return warped
@@ -186,11 +210,11 @@ def image_pipeline(image, ksize=3):
     grady = abs_sobel_thresh(image, orient='y', sobel_kernel=ksize, thresh=(80, 255))
     magnitude = mag_thresh(image, sobel_kernel=ksize, mag_thresh=(60, 255))
     direction = dir_thresh(image, sobel_kernel=ksize, thresh=(0.9, 1.3))
-    h = hls_thresh(image, 'h', thresh=(19, 30))
-    s = hls_thresh(image, 's', thresh=(160, 255))
+    h = hls_thresh(image, 'h', thresh=(16, 30))
+    s = hls_thresh(image, 's', thresh=(90, 255))
     r = rgb_thresh(image, 'r', (220, 255))
+    g = rgb_thresh(image, 'g', (200, 255))
 
-#    print(gradx[((gradx > 0) & (gradx < 1)) | (gradx > 1)])
     if DEBUG_IMAGE:
         plt.imshow(gradx, cmap='gray')
         print('gradx')
@@ -212,6 +236,10 @@ def image_pipeline(image, ksize=3):
         print('r')
         plt.show()
 
+        plt.imshow(g, cmap='gray') 
+        print('g')
+        plt.show()
+
         plt.imshow(magnitude, cmap='gray') 
         print('magnitude')
         plt.show()
@@ -224,22 +252,22 @@ def image_pipeline(image, ksize=3):
         print('magnitude & direction')
         plt.show()
 
-    combined =  gradx | (h & s) | r | (magnitude & direction)
+    combined =  gradx | (h & s) | r | g | (magnitude & direction)
     
     if DEBUG_IMAGE:
         plt.imshow(combined, cmap='gray')
         print('combined')
         plt.show()
 
-#    roi = np.array([[(650, 400),(1200, 720),(100, 720),(650, 400)]], dtype=np.int32)
-#    masked = region_of_interest(combined, roi)
-#
-#    if DEBUG_IMAGE:
-#        print('masked')
-#        plt.imshow(masked, cmap='gray')
-#        plt.show()
+    roi = np.array([[(650, 400), (1200, 720), (100, 720), (650, 400)]], dtype=np.int32)
+    masked = region_of_interest(combined, roi)
 
-    warped = warp(combined)
+    if DEBUG_IMAGE:
+        print('masked')
+        plt.imshow(masked, cmap='gray')
+        plt.show()
+
+    warped = warp(masked)
     return warped
    
 
@@ -250,11 +278,11 @@ def get_poly(overhead_image):
     # Find the peak of the left and right halves of the histogram
     # These will be the starting point for the left and right lines
     midpoint = np.int(histogram.shape[0] / 2)
-    leftx_base = np.argmax(histogram[:midpoint])
-    rightx_base = np.argmax(histogram[midpoint:]) + midpoint
+    leftx_base = np.argmax(histogram[220:420]) + 220
+    rightx_base = np.argmax(histogram[860:1060]) + 860
     
     # Choose the number of sliding windows
-    nwindows = 9
+    nwindows = 15 
     # Set height of windows
     window_height = np.int(overhead_image.shape[0] / nwindows)
     # Identify the x and y positions of all nonzero pixels in the image
@@ -265,9 +293,9 @@ def get_poly(overhead_image):
     leftx_current = leftx_base
     rightx_current = rightx_base
     # Set the width of the windows +/- margin
-    margin = 100
+    margin = 80
     # Set minimum number of pixels found to recenter window
-    minpix = 50
+    minpix = 200
     # Create empty lists to receive left and right lane pixel indices
     left_lane_inds = []
     right_lane_inds = []
@@ -282,7 +310,7 @@ def get_poly(overhead_image):
         win_xright_low = rightx_current - margin
         win_xright_high = rightx_current + margin
         # Draw the windows on the visualization image
-        cv2.rectangle(out_img,(win_xleft_low, win_y_low), (win_xleft_high, win_y_high), (0, 255, 0), 2) 
+        cv2.rectangle(out_img, (win_xleft_low, win_y_low), (win_xleft_high, win_y_high), (0, 255, 0), 2) 
         cv2.rectangle(out_img, (win_xright_low, win_y_low), (win_xright_high, win_y_high), (0, 255, 0), 2) 
         # Identify the nonzero pixels in x and y within the window
         good_left_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & (nonzerox >= win_xleft_low) & (nonzerox < win_xleft_high)).nonzero()[0]
@@ -291,7 +319,9 @@ def get_poly(overhead_image):
         left_lane_inds.append(good_left_inds)
         right_lane_inds.append(good_right_inds)
         # If you found > minpix pixels, recenter next window on their mean position
+#        print("Left Inds:", len(good_left_inds))
         if len(good_left_inds) > minpix:
+#            print("Window:", window)
             leftx_current = np.int(np.mean(nonzerox[good_left_inds]))
         if len(good_right_inds) > minpix:        
             rightx_current = np.int(np.mean(nonzerox[good_right_inds]))
@@ -310,14 +340,15 @@ def get_poly(overhead_image):
     left_fit = np.polyfit(lefty, leftx, 2)
     right_fit = np.polyfit(righty, rightx, 2)
 
-    if DEBUG_FIT: 
-        # Generate x and y values for plotting
-        ploty = np.linspace(0, overhead_image.shape[0] - 1, overhead_image.shape[0])
-        left_fitx = left_fit[0] * ploty**2 + left_fit[1] * ploty + left_fit[2]
-        right_fitx = right_fit[0] * ploty**2 + right_fit[1] * ploty + right_fit[2]
+    # Generate x and y values for plotting
+    ploty = np.linspace(0, overhead_image.shape[0] - 1, overhead_image.shape[0])
+    left_fitx = left_fit[0] * ploty ** 2 + left_fit[1] * ploty + left_fit[2]
+    right_fitx = right_fit[0] * ploty ** 2 + right_fit[1] * ploty + right_fit[2]
     
-        out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
-        out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
+    out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
+    out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
+
+    if DEBUG_FIT: 
         plt.imshow(out_img)
         plt.plot(left_fitx, ploty, color='yellow')
         plt.plot(right_fitx, ploty, color='yellow')
@@ -326,7 +357,7 @@ def get_poly(overhead_image):
         plt.show()
 
     # Define conversions in x and y from pixels space to meters
-    ym_per_pix = 3 / 80 # meters per pixel in y dimension
+    ym_per_pix = 30 / 720 # meters per pixel in y dimension
     xm_per_pix = 3.7 / 600 # meters per pixel in x dimension
     
     y_eval = np.max(ploty)
@@ -337,15 +368,14 @@ def get_poly(overhead_image):
     left_curverad = ((1 + (2 * left_fit_cr[0] * y_eval * ym_per_pix + left_fit_cr[1]) ** 2) ** 1.5) / np.absolute(2 * left_fit_cr[0])
     right_curverad = ((1 + (2 * right_fit_cr[0] * y_eval * ym_per_pix + right_fit_cr[1]) ** 2) ** 1.5) / np.absolute(2 * right_fit_cr[0])
     # Now our radius of curvature is in meters
-    if DEBUG_FIT:
-        print(left_curverad, 'm', right_curverad, 'm')
+#    if DEBUG_FIT:
+#    print(left_curverad, 'm', right_curverad, 'm')
     # Example values: 632.1 m    626.2 m
 
     return (ploty, left_fitx, right_fitx)
 
 
-def main():
-    np.set_printoptions(threshold=np.nan)
+def process_image(image):
     mtx = np.array([])
     dist = np.array([])
     if USE_SAVED_CORRECTION:
@@ -357,20 +387,22 @@ def main():
     if not mtx.size or not dist.size:
         mtx, dist = calibrate_camera(CALIBRATION_DIR)
 
-    image = cv2.imread(TEST_IMAGE)
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     undist = cv2.undistort(image, mtx, dist, None, mtx)
-    plt.imshow(undist)
-    plt.show()
+
+    if DEBUG_FIT:
+        plt.imshow(undist)
+        plt.show()
 
     w = warp(undist)
-    plt.imshow(w)
-    plt.show()
+    if DEBUG_FIT:
+        plt.imshow(w)
+        plt.show()
 
  
     overhead = image_pipeline(undist)
-    plt.imshow(overhead, cmap='gray')
-    plt.show()
+    if DEBUG_FIT:
+        plt.imshow(overhead, cmap='gray')
+        plt.show()
 
     ploty, left_fitx, right_fitx = get_poly(overhead)
     warp_zero = np.zeros_like(overhead).astype(np.uint8)
@@ -382,16 +414,30 @@ def main():
     pts = np.hstack((pts_left, pts_right))
 
     # Draw the lane onto the warped blank image
-    cv2.fillPoly(color_warp, np.int_([pts]), (0,255, 0))
+    cv2.fillPoly(color_warp, np.int_([pts]), (0, 255, 0))
 
-    # Warp the blank back to original image space using inverse perspective matrix (Minv)
+    # Warp the blank back to original image space
     newwarp = warp(color_warp, inv=True)
-#    newwarp = cv2.warpPerspective(color_warp, Minv, (image.shape[1], image.shape[0]))
     # Combine the result with the original image
     result = cv2.addWeighted(undist, 1, newwarp, 0.3, 0)
-    plt.imshow(result)
-    plt.show()
+    if DEBUG_FIT:
+        plt.imshow(result)
+        plt.show()
+    return result
 
+
+from moviepy.editor import VideoFileClip
+def main():
+    np.set_printoptions(threshold=np.nan)
+
+    image = cv2.imread('./test_images/straight_lines1.jpg')
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    process_image(image)
+
+    clip_out = './processed_video.mp4'
+    clip1 = VideoFileClip("./project_video.mp4")#.subclip(0, 5)
+    out_clip = clip1.fl_image(process_image) #NOTE: this function expects color images!!
+    out_clip.write_videofile(clip_out, audio=False)
 
 if __name__ == '__main__':
     main()
