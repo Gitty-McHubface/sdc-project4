@@ -1,5 +1,7 @@
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
+from moviepy.editor import VideoFileClip
+
 import numpy as np
 import cv2
 import glob
@@ -8,7 +10,7 @@ import os
 CALIBRATION_DIR = './camera_cal'
 
 DEBUG_IMAGE = False
-DEBUG_FIT = False
+DEBUG_FIT = True
 USE_SAVED_CORRECTION = True
 
 
@@ -274,10 +276,36 @@ def image_pipeline(image, ksize=3):
 
     warped = warp(masked)
     return warped
-   
+
+
+ # Define a class to receive the characteristics of each line detection
+class Line():
+    def __init__(self):
+        # Was the line detected in the last iteration?
+        self.detected = False  
+        # X values of the last n fits of the line
+        self.recent_x_fitted = [] 
+        # Average x values of the fitted line over the last n iterations
+        self.best_x = None     
+        # Polynomial coefficients averaged over the last n iterations
+        self.best_fit = None  
+        # Polynomial coefficients for the most recent fit
+        self.current_fit = [np.array([False])]  
+        # Radius of curvature of the line in some units
+        self.radius_of_curvature = None 
+        # Distance in meters of vehicle center from the line
+        self.line_base_pos = None 
+        # Difference in fit coefficients between last and new fits
+        self.diffs = np.array([0,0,0], dtype='float') 
+        # X values for detected line pixels
+        self.all_x = None  
+        # Y values for detected line pixels
+        self.all_y = None
+
+  
 def sliding_window_search(overhead_image, nwindows=15, margin=80, minpix=200):
+    # Create an output image to draw on and  visualize the result
     if DEBUG_FIT:
-        # Create an output image to draw on and  visualize the result
         out_img = np.dstack((overhead_image, overhead_image, overhead_image)) * 255
 
     histogram = np.sum(overhead_image[overhead_image.shape[0] // 2:,:], axis=0)
@@ -285,20 +313,20 @@ def sliding_window_search(overhead_image, nwindows=15, margin=80, minpix=200):
     # Find the peak of the left and right halves of the histogram
     # These will be the starting point for the left and right lines
     midpoint = np.int(histogram.shape[0] / 2)
-    leftx_base = np.argmax(histogram[220:420]) + 220
-    rightx_base = np.argmax(histogram[860:1060]) + 860
+    left_x_base = np.argmax(histogram[220:420]) + 220
+    right_x_base = np.argmax(histogram[860:1060]) + 860
     
     # Set height of windows
     window_height = np.int(overhead_image.shape[0] / nwindows)
 
     # Identify the x and y positions of all nonzero pixels in the image
     nonzero = overhead_image.nonzero()
-    nonzeroy = np.array(nonzero[0])
-    nonzerox = np.array(nonzero[1])
+    nonzero_y = np.array(nonzero[0])
+    nonzero_x = np.array(nonzero[1])
 
     # Current positions to be updated for each window
-    leftx_current = leftx_base
-    rightx_current = rightx_base
+    left_x_current = left_x_base
+    right_x_current = right_x_base
 
     # Create empty lists to receive left and right lane pixel indices
     left_lane_inds = []
@@ -309,23 +337,23 @@ def sliding_window_search(overhead_image, nwindows=15, margin=80, minpix=200):
         # Identify window boundaries in x and y (and right and left)
         win_y_low = overhead_image.shape[0] - (window + 1) * window_height
         win_y_high = overhead_image.shape[0] - window * window_height
-        win_xleft_low = leftx_current - margin
-        win_xleft_high = leftx_current + margin
-        win_xright_low = rightx_current - margin
-        win_xright_high = rightx_current + margin
+        win_x_left_low = left_x_current - margin
+        win_x_left_high = left_x_current + margin
+        win_x_right_low = right_x_current - margin
+        win_x_right_high = right_x_current + margin
 
+        # Draw the windows on the visualization image
         if DEBUG_FIT:
-            # Draw the windows on the visualization image
-            cv2.rectangle(out_img, (win_xleft_low, win_y_low),
-                          (win_xleft_high, win_y_high), (0, 255, 0), 2)
-            cv2.rectangle(out_img, (win_xright_low, win_y_low),
-                          (win_xright_high, win_y_high), (0, 255, 0), 2) 
+            cv2.rectangle(out_img, (win_x_left_low, win_y_low),
+                          (win_x_left_high, win_y_high), (0, 255, 0), 2)
+            cv2.rectangle(out_img, (win_x_right_low, win_y_low),
+                          (win_x_right_high, win_y_high), (0, 255, 0), 2) 
 
         # Identify the nonzero pixels in x and y within the window
-        good_left_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) &
-                          (nonzerox >= win_xleft_low) & (nonzerox < win_xleft_high)).nonzero()[0]
-        good_right_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) &
-                           (nonzerox >= win_xright_low) & (nonzerox < win_xright_high)).nonzero()[0]
+        good_left_inds = ((nonzero_y >= win_y_low) & (nonzero_y < win_y_high) &
+                          (nonzero_x >= win_x_left_low) & (nonzero_x < win_x_left_high)).nonzero()[0]
+        good_right_inds = ((nonzero_y >= win_y_low) & (nonzero_y < win_y_high) &
+                           (nonzero_x >= win_x_right_low) & (nonzero_x < win_x_right_high)).nonzero()[0]
 
         # Append these indices to the lists
         left_lane_inds.append(good_left_inds)
@@ -333,157 +361,140 @@ def sliding_window_search(overhead_image, nwindows=15, margin=80, minpix=200):
 
         # If you found > minpix pixels, recenter next window on their mean position
         if len(good_left_inds) > minpix:
-            leftx_current = np.int(np.mean(nonzerox[good_left_inds]))
+            left_x_current = np.int(np.mean(nonzero_x[good_left_inds]))
         if len(good_right_inds) > minpix:        
-            rightx_current = np.int(np.mean(nonzerox[good_right_inds]))
+            right_x_current = np.int(np.mean(nonzero_x[good_right_inds]))
     
     # Concatenate the arrays of indices
     left_lane_inds = np.concatenate(left_lane_inds)
     right_lane_inds = np.concatenate(right_lane_inds)
-    
+
     # Extract left and right line pixel positions
-    leftx = nonzerox[left_lane_inds]
-    lefty = nonzeroy[left_lane_inds] 
-    rightx = nonzerox[right_lane_inds]
-    righty = nonzeroy[right_lane_inds] 
+    left_x = nonzero_x[left_lane_inds]
+    left_y = nonzero_y[left_lane_inds] 
+    right_x = nonzero_x[right_lane_inds]
+    right_y = nonzero_y[right_lane_inds] 
 
-    # Fit a second order polynomial to each
-    left_fit = np.polyfit(lefty, leftx, 2)
-    right_fit = np.polyfit(righty, rightx, 2)
-
+    # Left lane pixels red, right lane pixels blue
     if DEBUG_FIT:
-        out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
-        out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
+        out_img[left_y, left_x] = [255, 0, 0]
+        out_img[right_y, right_x] = [0, 0, 255]
         plt.imshow(out_img)
 
-    return (left_fit, right_fit)
+    return (left_x, left_y, right_x, right_y)
 
 
 def margin_search(overhead_image, left_fit, right_fit, margin=40):
     nonzero = overhead_image.nonzero()
-    nonzeroy = np.array(nonzero[0])
-    nonzerox = np.array(nonzero[1])
-    left_lane_inds = ((nonzerox > (left_fit[0] * (nonzeroy ** 2) +
-                                   left_fit[1] * nonzeroy + left_fit[2] - margin)) &
-                      (nonzerox < (left_fit[0] * (nonzeroy ** 2) +
-                                   left_fit[1] * nonzeroy + left_fit[2] + margin))) 
-    right_lane_inds = ((nonzerox > (right_fit[0] * (nonzeroy ** 2) +
-                                    right_fit[1] * nonzeroy + right_fit[2] - margin)) &
-                       (nonzerox < (right_fit[0] * (nonzeroy ** 2) +
-                                    right_fit[1] * nonzeroy + right_fit[2] + margin)))
+    nonzero_y = np.array(nonzero[0])
+    nonzero_x = np.array(nonzero[1])
+
+    left_lane_inds = ((nonzero_x > (left_fit[0] * (nonzero_y ** 2) +
+                                    left_fit[1] * nonzero_y + left_fit[2] - margin)) &
+                      (nonzero_x < (left_fit[0] * (nonzero_y ** 2) +
+                                    left_fit[1] * nonzero_y + left_fit[2] + margin))) 
+    right_lane_inds = ((nonzero_x > (right_fit[0] * (nonzero_y ** 2) +
+                                     right_fit[1] * nonzero_y + right_fit[2] - margin)) &
+                       (nonzero_x < (right_fit[0] * (nonzero_y ** 2) +
+                                     right_fit[1] * nonzero_y + right_fit[2] + margin)))
     
     # Again, extract left and right line pixel positions
-    leftx = nonzerox[left_lane_inds]
-    lefty = nonzeroy[left_lane_inds] 
-    rightx = nonzerox[right_lane_inds]
-    righty = nonzeroy[right_lane_inds]
-
-    # Fit a second order polynomial to each
-    left_fit = np.polyfit(lefty, leftx, 2)
-    right_fit = np.polyfit(righty, rightx, 2)
+    left_x = nonzero_x[left_lane_inds]
+    left_y = nonzero_y[left_lane_inds] 
+    right_x = nonzero_x[right_lane_inds]
+    right_y = nonzero_y[right_lane_inds]
 
     if DEBUG_FIT:
-#        ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0] )
-#        left_fitx = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
-#        right_fitx = right_fit[0]*ploty**2 + right_fit[1]*ploty + right_fit[2]
-#
-        # Create an image to draw on and an image to show the selection window
-        out_img = np.dstack((overhead_image, overhead_image, overhead_image))*255
-#        window_img = np.zeros_like(out_img)
-#
+        plot_y = np.linspace(0, overhead_image.shape[0] - 1, overhead_image.shape[0])
+        left_fit_x = left_fit[0] * plot_y ** 2 + left_fit[1] * plot_y + left_fit[2]
+        right_fit_x = right_fit[0] * plot_y ** 2 + right_fit[1] * plot_y + right_fit[2]
+
         # Color in left and right line pixels
-        out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
-        out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
-#
-#        # Generate a polygon to illustrate the search window area
-#        # And recast the x and y points into usable format for cv2.fillPoly()
-#        left_line_window1 = np.array([np.transpose(np.vstack([left_fitx-margin, ploty]))])
-#        left_line_window2 = np.array([np.flipud(np.transpose(np.vstack([left_fitx+margin, ploty])))])
-#        left_line_pts = np.hstack((left_line_window1, left_line_window2))
-#        right_line_window1 = np.array([np.transpose(np.vstack([right_fitx-margin, ploty]))])
-#        right_line_window2 = np.array([np.flipud(np.transpose(np.vstack([right_fitx+margin, ploty])))])
-#        right_line_pts = np.hstack((right_line_window1, right_line_window2))
-#
-#        # Draw the lane onto the warped blank image
-#        cv2.fillPoly(window_img, np.int_([left_line_pts]), (0,255, 0))
-#        cv2.fillPoly(window_img, np.int_([right_line_pts]), (0,255, 0))
-#        result = cv2.addWeighted(out_img, 1, window_img, 0.3, 0)
-        plt.imshow(out_img)
+        out_img = np.dstack((overhead_image, overhead_image, overhead_image)) * 255
+        out_img[nonzero_y[left_lane_inds], nonzero_x[left_lane_inds]] = [255, 0, 0]
+        out_img[nonzero_y[right_lane_inds], nonzero_x[right_lane_inds]] = [0, 0, 255]
 
-    return (left_fit, right_fit)
+        # Create an image to draw on and an image to show the selection window
+        window_img = np.zeros_like(out_img)
 
-# Define a class to receive the characteristics of each line detection
-class Line():
-    def __init__(self):
-        # was the line detected in the last iteration?
-        self.detected = False  
-        # x values of the last n fits of the line
-        self.recent_xfitted = [] 
-        #average x values of the fitted line over the last n iterations
-        self.bestx = None     
-        #polynomial coefficients averaged over the last n iterations
-        self.best_fit = None  
-        #polynomial coefficients for the most recent fit
-        self.current_fit = [np.array([False])]  
-        #radius of curvature of the line in some units
-        self.radius_of_curvature = None 
-        #distance in meters of vehicle center from the line
-        self.line_base_pos = None 
-        #difference in fit coefficients between last and new fits
-        self.diffs = np.array([0,0,0], dtype='float') 
-        #x values for detected line pixels
-        self.allx = None  
-        #y values for detected line pixels
-        self.ally = None
+        # Generate a polygon to illustrate the search window area
+        # And recast the x and y points into usable format for cv2.fillPoly()
+        left_line_window1 = np.array([np.transpose(np.vstack([left_fit_x - margin, plot_y]))])
+        left_line_window2 = np.array([np.flipud(np.transpose(np.vstack([left_fit_x + margin, plot_y])))])
+        left_line_pts = np.hstack((left_line_window1, left_line_window2))
+        right_line_window1 = np.array([np.transpose(np.vstack([right_fit_x - margin, plot_y]))])
+        right_line_window2 = np.array([np.flipud(np.transpose(np.vstack([right_fit_x + margin, plot_y])))])
+        right_line_pts = np.hstack((right_line_window1, right_line_window2))
+
+        # Draw the lane onto the warped blank image
+        cv2.fillPoly(window_img, np.int_([left_line_pts]), (0,255, 0))
+        cv2.fillPoly(window_img, np.int_([right_line_pts]), (0,255, 0))
+        result = cv2.addWeighted(out_img, 1, window_img, 0.3, 0)
+
+        plt.imshow(result)
+
+    return (left_x, left_y, right_x, right_y)
 
 
-def find_lane_lines(overhead_image, left_fit=None, right_fit=None):
-    if not left_fit.size or not right_fit.size:
-        return sliding_window_search(overhead_image)
+def get_line_curvature(line_x, line_y, max_y):
+    # Define conversions in x and y from pixels space to meters
+    ym_per_pix = 30 / 720 # meters per pixel in y dimension
+    xm_per_pix = 3.7 / 600 # meters per pixel in x dimension
+    
+    # Fit polynomial to x,y in world space
+    line_fit = np.polyfit(line_y * ym_per_pix, line_x * xm_per_pix, 2)
+
+    # Calculate the new radii of curvature
+    line_curverad = ( ((1 + (2 * line_fit[0] * max_y * ym_per_pix + line_fit[1]) ** 2) ** 1.5) /
+                      np.absolute(2 * line_fit[0]) )
+
+    return line_curverad
+
+
+def find_lane_lines(overhead_image, left_line, right_line):
+    if not left_line.detected or not right_line.detected:
+         left_x, left_y, right_x, right_y = sliding_window_search(overhead_image)
     else:
-        return margin_search(overhead_image, left_fit, right_fit)
+         left_x, left_y, right_x, right_y = margin_search(overhead_image, left_line.current_fit, right_line.current_fit)
+
+    left_line.all_x = left_x
+    left_line.all_y = left_y
+    right_line.all_x = right_x
+    right_line.all_y = right_y
+
+    # Fit a second order polynomial to each
+    left_fit = np.polyfit(left_y, left_x, 2)
+    right_fit = np.polyfit(right_y, right_x, 2)
+
+    left_line.current_fit = left_fit
+    right_line.current_fit = right_fit
+
+    left_line.radius_of_curvature = get_line_curvature(left_x, left_y, overhead_image.shape[0] - 1)
+    right_line.radius_of_curvature = get_line_curvature(right_x, right_y, overhead_image.shape[0] - 1)
+
+    if DEBUG_FIT:
+        print(left_line.radius_of_curvature, 'm', right_line.radius_of_curvature, 'm')
+
+    left_line.detected = True
+    right_line.detected = True
 
 
-#def plot_lane_lines(overhead_image, left_fit, right_fit):
-#    
-#    # Define conversions in x and y from pixels space to meters
-#    ym_per_pix = 30 / 720 # meters per pixel in y dimension
-#    xm_per_pix = 3.7 / 600 # meters per pixel in x dimension
-#    
-#    y_eval = np.max(ploty)
-#    # Fit new polynomials to x,y in world space
-#    left_fit_cr = np.polyfit(lefty * ym_per_pix, leftx * xm_per_pix, 2)
-#    right_fit_cr = np.polyfit(righty * ym_per_pix, rightx * xm_per_pix, 2)
-#    # Calculate the new radii of curvature
-#    left_curverad = ((1 + (2 * left_fit_cr[0] * y_eval * ym_per_pix + left_fit_cr[1]) ** 2) ** 1.5) /
-#                    np.absolute(2 * left_fit_cr[0])
-#    right_curverad = ((1 + (2 * right_fit_cr[0] * y_eval * ym_per_pix + right_fit_cr[1]) ** 2) ** 1.5) /
-#                     np.absolute(2 * right_fit_cr[0])
-#    # Now our radius of curvature is in meters
-#    if DEBUG_FIT:
-#        print(left_curverad, 'm', right_curverad, 'm')
-#
-#    return (ploty, left_fitx, right_fitx)
-#
-#
-lf = np.array([])
-rf = np.array([])
+left_line = Line()
+right_line = Line()
 
 def process_image(image):
-    global lf, rf
-    mtx = np.array([])
-    dist = np.array([])
+    global left_line, right_line
+
     if USE_SAVED_CORRECTION:
         mtx = np.array([[ 1.15158804e+03, 0.00000000e+00, 6.66167057e+02],
                         [ 0.00000000e+00, 1.14506859e+03, 3.86440204e+02],
                         [ 0.00000000e+00, 0.00000000e+00, 1.00000000e+00]])
         dist = np.array([[ -2.35510339e-01, -7.90388401e-02, -1.28492202e-03,
                            8.25970342e-05, 7.22743174e-02]])
-    if not mtx.size or not dist.size:
+    else:
         mtx, dist = calibrate_camera(CALIBRATION_DIR)
 
     undist = cv2.undistort(image, mtx, dist, None, mtx)
-
     if DEBUG_FIT:
         plt.imshow(undist)
         plt.show()
@@ -498,26 +509,30 @@ def process_image(image):
         plt.imshow(overhead_image, cmap='gray')
         plt.show()
 
-    lf, rf = find_lane_lines(overhead_image, left_fit=lf, right_fit=rf)
+    find_lane_lines(overhead_image, left_line, right_line)
 
     # Generate x and y values for plotting
-    ploty = np.linspace(0, overhead_image.shape[0] - 1, overhead_image.shape[0])
-    left_fitx = lf[0] * ploty ** 2 + lf[1] * ploty + lf[2]
-    right_fitx = rf[0] * ploty ** 2 + rf[1] * ploty + rf[2]
+    y_size = overhead_image.shape[0]
+    x_size = overhead_image.shape[1]
+    plot_y = np.linspace(0, y_size - 1, y_size)
+    left_fit_x = ( left_line.current_fit[0] * plot_y ** 2 +
+                   left_line.current_fit[1] * plot_y + left_line.current_fit[2] )
+    right_fit_x = ( right_line.current_fit[0] * plot_y ** 2 +
+                    right_line.current_fit[1] * plot_y + right_line.current_fit[2] )
 
     if DEBUG_FIT:
-        plt.plot(left_fitx, ploty, color='yellow')
-        plt.plot(right_fitx, ploty, color='yellow')
-        plt.xlim(0, 1280)
-        plt.ylim(720, 0)
+        plt.plot(left_fit_x, plot_y, color='yellow')
+        plt.plot(right_fit_x, plot_y, color='yellow')
+        plt.xlim(0, x_size)
+        plt.ylim(y_size, 0)
         plt.show()
 
     warp_zero = np.zeros_like(overhead_image).astype(np.uint8)
     color_warp = np.dstack((warp_zero, warp_zero, warp_zero))
 
     # Recast the x and y points into usable format for cv2.fillPoly()
-    pts_left = np.array([np.transpose(np.vstack([left_fitx, ploty]))])
-    pts_right = np.array([np.flipud(np.transpose(np.vstack([right_fitx, ploty])))])
+    pts_left = np.array([np.transpose(np.vstack([left_fit_x, plot_y]))])
+    pts_right = np.array([np.flipud(np.transpose(np.vstack([right_fit_x, plot_y])))])
     pts = np.hstack((pts_left, pts_right))
 
     # Draw the lane onto the warped blank image
@@ -525,15 +540,16 @@ def process_image(image):
 
     # Warp the blank back to original image space
     newwarp = warp(color_warp, inv=True)
+
     # Combine the result with the original image
     result = cv2.addWeighted(undist, 1, newwarp, 0.3, 0)
     if DEBUG_FIT:
         plt.imshow(result)
         plt.show()
+
     return result
 
 
-from moviepy.editor import VideoFileClip
 def main():
     np.set_printoptions(threshold=np.nan)
 #
