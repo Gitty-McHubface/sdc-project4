@@ -8,9 +8,14 @@ import glob
 import os
 
 CALIBRATION_DIR = './camera_cal'
+IN_VIDEO = './project_video.mp4'
+OUT_VIDEO = './processed_video.mp4'
 
-DEBUG_IMAGE = False
+TEST_IMAGE = './test_images/straight_lines2.jpg'
+DEBUG_THRESH = False
 DEBUG_FIT = True
+DEBUG_PROCESS = True
+
 USE_SAVED_CORRECTION = True
 
 
@@ -100,7 +105,7 @@ def hls_thresh(image, hls_channel='s', thresh=(0, 255)):
     else:
         raise Exception('hls_channel must be h, l or s')
 
-    if DEBUG_IMAGE:
+    if DEBUG_THRESH:
         print('hls thresh')
         plt.imshow(channel, cmap='gray')
         plt.show()
@@ -121,7 +126,7 @@ def rgb_thresh(image, rgb_channel='r', thresh=(0, 255)):
     else:
         raise Exception('rgb_channel must be r, g or b')
 
-    if DEBUG_IMAGE:
+    if DEBUG_THRESH:
         print('rgb thresh')
         plt.imshow(channel, cmap='gray')
         plt.show()
@@ -162,7 +167,7 @@ def warp(image, inv=False, src=None, dst=None):
     warped = cv2.warpPerspective(image, m, (image.shape[1], image.shape[0]),
                                  flags=cv2.INTER_LINEAR)
 
-    if DEBUG_IMAGE:
+    if DEBUG_THRESH:
         plt.imshow(image, cmap='gray')
         plt.plot((688, 1126), (448, 720), 'r')
         plt.plot((1126, 188), (720, 720), 'r')
@@ -222,7 +227,7 @@ def image_pipeline(image, ksize=3):
     r = rgb_thresh(image, 'r', (220, 255))
     g = rgb_thresh(image, 'g', (200, 255))
 
-    if DEBUG_IMAGE:
+    if DEBUG_THRESH:
         plt.imshow(gradx, cmap='gray')
         print('gradx')
         plt.show()
@@ -261,7 +266,7 @@ def image_pipeline(image, ksize=3):
 
     combined =  gradx | (h & s) | r | g | (magnitude & direction)
     
-    if DEBUG_IMAGE:
+    if DEBUG_THRESH:
         plt.imshow(combined, cmap='gray')
         print('combined')
         plt.show()
@@ -269,7 +274,7 @@ def image_pipeline(image, ksize=3):
     roi = np.array([[(650, 400), (1200, 720), (100, 720), (650, 400)]], dtype=np.int32)
     masked = region_of_interest(combined, roi)
 
-    if DEBUG_IMAGE:
+    if DEBUG_THRESH:
         print('masked')
         plt.imshow(masked, cmap='gray')
         plt.show()
@@ -384,7 +389,7 @@ def sliding_window_search(overhead_image, nwindows=15, margin=80, minpix=200):
     return (left_x, left_y, right_x, right_y)
 
 
-def margin_search(overhead_image, left_fit, right_fit, margin=40):
+def margin_search(overhead_image, left_fit, right_fit, margin=60):
     nonzero = overhead_image.nonzero()
     nonzero_y = np.array(nonzero[0])
     nonzero_x = np.array(nonzero[1])
@@ -436,16 +441,12 @@ def margin_search(overhead_image, left_fit, right_fit, margin=40):
     return (left_x, left_y, right_x, right_y)
 
 
-def get_line_curvature(line_x, line_y, max_y):
-    # Define conversions in x and y from pixels space to meters
-    ym_per_pix = 30 / 720 # meters per pixel in y dimension
-    xm_per_pix = 3.7 / 600 # meters per pixel in x dimension
-    
-    # Fit polynomial to x,y in world space
-    line_fit = np.polyfit(line_y * ym_per_pix, line_x * xm_per_pix, 2)
+def get_line_curvature(line_x, line_y, bottom_image_y, x_scale=3.7/600, y_scale=30/720):
+    # Fit polynomial to scaled x, y
+    line_fit = np.polyfit(line_y * y_scale, line_x * x_scale, 2)
 
-    # Calculate the new radii of curvature
-    line_curverad = ( ((1 + (2 * line_fit[0] * max_y * ym_per_pix + line_fit[1]) ** 2) ** 1.5) /
+    # Calculate the radii of curvature at the bottom of the image
+    line_curverad = ( ((1 + (2 * line_fit[0] * bottom_image_y * y_scale + line_fit[1]) ** 2) ** 1.5) /
                       np.absolute(2 * line_fit[0]) )
 
     return line_curverad
@@ -463,11 +464,8 @@ def find_lane_lines(overhead_image, left_line, right_line):
     right_line.all_y = right_y
 
     # Fit a second order polynomial to each
-    left_fit = np.polyfit(left_y, left_x, 2)
-    right_fit = np.polyfit(right_y, right_x, 2)
-
-    left_line.current_fit = left_fit
-    right_line.current_fit = right_fit
+    left_line.current_fit = np.polyfit(left_y, left_x, 2)
+    right_line.current_fit = np.polyfit(right_y, right_x, 2)
 
     left_line.radius_of_curvature = get_line_curvature(left_x, left_y, overhead_image.shape[0] - 1)
     right_line.radius_of_curvature = get_line_curvature(right_x, right_y, overhead_image.shape[0] - 1)
@@ -495,17 +493,17 @@ def process_image(image):
         mtx, dist = calibrate_camera(CALIBRATION_DIR)
 
     undist = cv2.undistort(image, mtx, dist, None, mtx)
-    if DEBUG_FIT:
+    if DEBUG_PROCESS:
         plt.imshow(undist)
         plt.show()
 
-    w = warp(undist)
-    if DEBUG_FIT:
+    if DEBUG_PROCESS:
+        w = warp(undist)
         plt.imshow(w)
         plt.show()
 
     overhead_image = image_pipeline(undist)
-    if DEBUG_FIT:
+    if DEBUG_PROCESS:
         plt.imshow(overhead_image, cmap='gray')
         plt.show()
 
@@ -543,7 +541,7 @@ def process_image(image):
 
     # Combine the result with the original image
     result = cv2.addWeighted(undist, 1, newwarp, 0.3, 0)
-    if DEBUG_FIT:
+    if DEBUG_PROCESS:
         plt.imshow(result)
         plt.show()
 
@@ -552,15 +550,15 @@ def process_image(image):
 
 def main():
     np.set_printoptions(threshold=np.nan)
-#
-#    image = cv2.imread('./test_images/straight_lines1.jpg')
-#    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-#    process_image(image)
 
-    clip_out = './processed_video.mp4'
-    clip1 = VideoFileClip("./project_video.mp4")#.subclip(37, 45)
-    out_clip = clip1.fl_image(process_image)
-    out_clip.write_videofile(clip_out, audio=False)
+    if TEST_IMAGE:
+        image = cv2.imread(TEST_IMAGE)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        process_image(image)
+    else:
+        clip1 = VideoFileClip(IN_VIDEO)#.subclip(37, 45)
+        out_clip = clip1.fl_image(process_image)
+        out_clip.write_videofile(OUT_VIDEO, audio=False)
 
 if __name__ == '__main__':
     main()
