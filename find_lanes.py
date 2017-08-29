@@ -8,17 +8,32 @@ import glob
 import os
 
 
-CALIBRATION_DIR = './camera_cal'
+TEST_IMAGE = None
+DEBUG_THRESH = False
+DEBUG_FIT = False
+DEBUG_PROCESS = False
+
 IN_VIDEO = './project_video.mp4'
 OUT_VIDEO = './processed_video.mp4'
+CALIBRATION_DIR = './camera_cal'
 
 USE_SAVED_CORRECTION = True
+SAVED_MTX = np.array([[ 1.15158804e+03, 0.00000000e+00, 6.66167057e+02],
+                      [ 0.00000000e+00, 1.14506859e+03, 3.86440204e+02],
+                      [ 0.00000000e+00, 0.00000000e+00, 1.00000000e+00]])
+SAVED_DIST = np.array([[ -2.35510339e-01, -7.90388401e-02, -1.28492202e-03,
+                         8.25970342e-05, 7.22743174e-02]])
 
-TEST_IMAGE = None#'./test_images/straight_lines2.jpg'
-DEBUG_THRESH = False
-DEBUG_FIT = True
-DEBUG_PROCESS = True
+WARP_ORIG_SRC = np.float32([[688, 448],
+                           [1126, 720],
+                           [188, 720],
+                           [594, 448]])
+WARP_OVERHEAD_DST = np.float32([[960, 0],
+                                [960, 720],
+                                [320, 720],
+                                [320, 0]])
 
+MASK_ROI = [(650, 400), (1200, 720), (100, 720), (650, 400)]
 
 def calibrate_camera(calibration_dir, file_pattern='calibration*.jpg',
                      row_corners=6, col_corners=9):
@@ -107,11 +122,11 @@ def hls_thresh(image, hls_channel='s', thresh=(0, 255)):
     else:
         raise Exception('hls_channel must be h, l or s')
 
-    if DEBUG_THRESH:
-        print('hls channel -', hls_channel)
-        plt.imshow(channel, cmap='gray')
-        plt.show()
-
+#    if DEBUG_THRESH:
+#        print('hls channel -', hls_channel)
+#        plt.imshow(channel, cmap='gray')
+#        plt.show()
+#
     channel_binary = np.zeros_like(channel)
     channel_binary[(channel > thresh[0]) & (channel <= thresh[1])] = 1
         
@@ -128,50 +143,35 @@ def rgb_thresh(image, rgb_channel='r', thresh=(0, 255)):
     else:
         raise Exception('rgb_channel must be r, g or b')
 
-    if DEBUG_THRESH:
-        print('rgb channel -', rgb_channel)
-        plt.imshow(channel, cmap='gray')
-        plt.show()
-
+#    if DEBUG_THRESH:
+#        print('rgb channel -', rgb_channel)
+#        plt.imshow(channel, cmap='gray')
+#        plt.show()
+#
     channel_binary = np.zeros_like(channel)
     channel_binary[(channel > thresh[0]) & (channel <= thresh[1])] = 1
 
     return channel_binary
 
 
-def warp(image, src=None, dst=None, inv=False):
-    if not src or dst:
-        src = np.float32([[688, 448],
-                          [1126, 720],
-                          [188, 720],
-                          [594, 448]])
-
-        dst = np.float32([[960, 0],
-                          [960, 720],
-                          [320, 720],
-                          [320, 0]])
-
-    if not inv:
-        m = cv2.getPerspectiveTransform(src, dst)
-    else:
-        m = cv2.getPerspectiveTransform(dst, src)
-
+def warp(image, src, dst):
+    m = cv2.getPerspectiveTransform(src, dst)
     warped = cv2.warpPerspective(image, m, (image.shape[1], image.shape[0]),
                                  flags=cv2.INTER_LINEAR)
 
-    if DEBUG_THRESH and not inv:
+    if DEBUG_THRESH:
         plt.imshow(image, cmap='gray')
-        plt.plot((688, 1126), (448, 720), 'r')
-        plt.plot((1126, 188), (720, 720), 'r')
-        plt.plot((188, 594), (720, 448), 'r')
-        plt.plot((594, 688), (448, 448), 'r')
+        plt.plot((src[0][0], src[1][0]), (src[0][1], src[1][1]), 'r')
+        plt.plot((src[1][0], src[2][0]), (src[1][1], src[2][1]), 'r')
+        plt.plot((src[2][0], src[3][0]), (src[2][1], src[3][1]), 'r')
+        plt.plot((src[3][0], src[0][0]), (src[3][1], src[0][1]), 'r')
         plt.show()
 
         plt.imshow(warped, cmap='gray')
-        plt.plot((960, 960), (0, 720), 'r')
-        plt.plot((960, 320), (720, 720), 'r')
-        plt.plot((320, 320), (720, 0), 'r')
-        plt.plot((320, 960), (0, 0), 'r')
+        plt.plot((dst[0][0], dst[1][0]), (dst[0][1], dst[1][1]), 'r')
+        plt.plot((dst[1][0], dst[2][0]), (dst[1][1], dst[2][1]), 'r')
+        plt.plot((dst[2][0], dst[3][0]), (dst[2][1], dst[3][1]), 'r')
+        plt.plot((dst[3][0], dst[0][0]), (dst[3][1], dst[0][1]), 'r')
         plt.show()
 
     return warped
@@ -262,11 +262,11 @@ class Line():
     def __init__(self):
         # Was the line detected in the last iteration?
         self.detected = False
-        # X values of the last n fits of the line
+        # X values of the last 5 fits of the line
         self.recent_x_fitted = deque(maxlen=5)
-        # Average x values of the fitted line over the last n iterations
+        # Average x values of the fitted line over the last 5 iterations
         self.best_x = None
-        # Polynomial coefficients averaged over the last n iterations
+        # Polynomial coefficients averaged over the last 5 iterations
         self.best_fit = None
         # Polynomial coefficients for the most recent fit
         self.current_fit = [np.array([False])]
@@ -330,9 +330,11 @@ def sliding_window_search(overhead_image, nwindows=15, margin=80, minpix=200):
 
         # Identify the nonzero pixels in x and y within the window
         good_left_inds = ((nonzero_y >= win_y_low) & (nonzero_y < win_y_high) &
-                          (nonzero_x >= win_x_left_low) & (nonzero_x < win_x_left_high)).nonzero()[0]
+                          (nonzero_x >= win_x_left_low) &
+                          (nonzero_x < win_x_left_high)).nonzero()[0]
         good_right_inds = ((nonzero_y >= win_y_low) & (nonzero_y < win_y_high) &
-                           (nonzero_x >= win_x_right_low) & (nonzero_x < win_x_right_high)).nonzero()[0]
+                           (nonzero_x >= win_x_right_low) &
+                           (nonzero_x < win_x_right_high)).nonzero()[0]
 
         # Append these indices to the lists
         left_lane_inds.append(good_left_inds)
@@ -399,10 +401,13 @@ def margin_search(overhead_image, left_fit, right_fit, margin=60):
         # Generate a polygon to illustrate the search window area
         # And recast the x and y points into usable format for cv2.fillPoly()
         left_line_window1 = np.array([np.transpose(np.vstack([left_fit_x - margin, plot_y]))])
-        left_line_window2 = np.array([np.flipud(np.transpose(np.vstack([left_fit_x + margin, plot_y])))])
+        left_line_window2 = np.array([np.flipud(np.transpose(
+            np.vstack([left_fit_x + margin, plot_y])))])
         left_line_pts = np.hstack((left_line_window1, left_line_window2))
-        right_line_window1 = np.array([np.transpose(np.vstack([right_fit_x - margin, plot_y]))])
-        right_line_window2 = np.array([np.flipud(np.transpose(np.vstack([right_fit_x + margin, plot_y])))])
+        right_line_window1 = np.array([np.transpose(
+            np.vstack([right_fit_x - margin, plot_y]))])
+        right_line_window2 = np.array([np.flipud(np.transpose(
+            np.vstack([right_fit_x + margin, plot_y])))])
         right_line_pts = np.hstack((right_line_window1, right_line_window2))
 
         # Draw the lane onto the warped blank image
@@ -420,8 +425,8 @@ def get_line_curvature(line_x, line_y, bottom_image_y, x_scale=3.7/600, y_scale=
     line_fit = np.polyfit(line_y * y_scale, line_x * x_scale, 2)
 
     # Calculate the radii of curvature at the bottom of the image
-    line_curverad = ( ((1 + (2 * line_fit[0] * bottom_image_y * y_scale + line_fit[1]) ** 2) ** 1.5) /
-                      np.absolute(2 * line_fit[0]) )
+    line_curverad = ((1 + (2 * line_fit[0] * bottom_image_y * y_scale +
+                      line_fit[1]) ** 2) ** 1.5) / np.absolute(2 * line_fit[0])
 
     return line_curverad
 
@@ -430,7 +435,8 @@ def find_lane_lines(overhead_image, left_line, right_line):
     if not left_line.detected or not right_line.detected:
          left_x, left_y, right_x, right_y = sliding_window_search(overhead_image)
     else:
-         left_x, left_y, right_x, right_y = margin_search(overhead_image, left_line.current_fit, right_line.current_fit)
+         left_x, left_y, right_x, right_y = margin_search(overhead_image, left_line.current_fit,
+                                                          right_line.current_fit)
 
     left_line.all_x = left_x
     left_line.all_y = left_y
@@ -468,14 +474,35 @@ def find_lane_lines(overhead_image, left_line, right_line):
     right_line.best_fit = np.polyfit(plot_y, right_line.best_x, 2)
 
     # Calculate the radius of curvature of each line
-    left_line.radius_of_curvature = get_line_curvature(left_x, left_y, overhead_image.shape[0] - 1)
-    right_line.radius_of_curvature = get_line_curvature(right_x, right_y, overhead_image.shape[0] - 1)
+    left_line.radius_of_curvature = get_line_curvature(left_x, left_y,
+                                                       overhead_image.shape[0] - 1)
+    right_line.radius_of_curvature = get_line_curvature(right_x, right_y,
+                                                        overhead_image.shape[0] - 1)
 
     if DEBUG_FIT:
         print(left_line.radius_of_curvature, 'm', right_line.radius_of_curvature, 'm')
 
     left_line.detected = True
     right_line.detected = True
+
+
+def draw_overhead_lane(overhead_image, left_line, right_line):
+    y_size = overhead_image.shape[0]
+    plot_y = np.linspace(0, y_size - 1, y_size)
+
+    overhead_zero = np.zeros_like(overhead_image).astype(np.uint8)
+    overhead_color = np.dstack((overhead_zero, overhead_zero, overhead_zero))
+
+    # Recast the x and y points into usable format for cv2.fillPoly()
+    pts_left = np.array([np.transpose(np.vstack([left_line.best_x, plot_y]))])
+    pts_right = np.array([np.flipud(np.transpose(np.vstack([right_line.best_x,
+                                                            plot_y])))])
+    pts = np.hstack((pts_left, pts_right))
+
+    # Draw the lane onto the warped blank image
+    cv2.fillPoly(overhead_color, np.int_([pts]), (0, 255, 0))
+
+    return overhead_color
 
 
 left_line = Line()
@@ -489,11 +516,8 @@ def process_image(image):
 
     if not mtx.size or not dist.size:
         if USE_SAVED_CORRECTION:
-            mtx = np.array([[ 1.15158804e+03, 0.00000000e+00, 6.66167057e+02],
-                            [ 0.00000000e+00, 1.14506859e+03, 3.86440204e+02],
-                            [ 0.00000000e+00, 0.00000000e+00, 1.00000000e+00]])
-            dist = np.array([[ -2.35510339e-01, -7.90388401e-02, -1.28492202e-03,
-                               8.25970342e-05, 7.22743174e-02]])
+            mtx = SAVED_MTX
+            dist = SAVED_DIST
         else:
             mtx, dist = calibrate_camera(CALIBRATION_DIR)
 
@@ -502,46 +526,33 @@ def process_image(image):
         plt.imshow(undist)
         plt.show()
 
-    edges = image_threshold(undist)
+    threshold_edges = image_threshold(undist)
     if DEBUG_PROCESS:
-        plt.imshow(edges, cmap='gray')
-        print('edges')
+        plt.imshow(threshold_edges, cmap='gray')
+        print('threshold edges')
         plt.show()
 
-    roi = np.array([[(650, 400), (1200, 720), (100, 720), (650, 400)]], dtype=np.int32)
-    masked = region_of_interest(edges, roi)
+    roi = np.array([MASK_ROI], dtype=np.int32)
+    masked_edges = region_of_interest(threshold_edges, roi)
     if DEBUG_PROCESS:
-        print('masked')
-        plt.imshow(masked, cmap='gray')
+        print('masked edges')
+        plt.imshow(masked_edges, cmap='gray')
         plt.show()
 
-    overhead_image = warp(masked)
+    overhead_edges = warp(masked_edges, src=WARP_ORIG_SRC, dst=WARP_OVERHEAD_DST)
     if DEBUG_PROCESS:
-        plt.imshow(overhead_image, cmap='gray')
+        plt.imshow(overhead_edges, cmap='gray')
         plt.show()
 
-    find_lane_lines(overhead_image, left_line, right_line)
+    find_lane_lines(overhead_edges, left_line, right_line)
 
-    y_size = overhead_image.shape[0]
-    plot_y = np.linspace(0, y_size - 1, y_size)
+    overhead_lane = draw_overhead_lane(overhead_edges, left_line, right_line)
 
-    warp_zero = np.zeros_like(overhead_image).astype(np.uint8)
-    color_warp = np.dstack((warp_zero, warp_zero, warp_zero))
-
-    # Recast the x and y points into usable format for cv2.fillPoly()
-    pts_left = np.array([np.transpose(np.vstack([left_line.best_x, plot_y]))])
-    pts_right = np.array([np.flipud(np.transpose(np.vstack([right_line.best_x,
-                                                            plot_y])))])
-    pts = np.hstack((pts_left, pts_right))
-
-    # Draw the lane onto the warped blank image
-    cv2.fillPoly(color_warp, np.int_([pts]), (0, 255, 0))
-
-    # Warp the blank back to original image space
-    new_warp = warp(color_warp, inv=True)
+    # Warp the overhead blank back to original image space
+    orig_perspective_lane = warp(overhead_lane, src=WARP_OVERHEAD_DST, dst=WARP_ORIG_SRC)
 
     # Combine the result with the original image
-    result = cv2.addWeighted(undist, 1, new_warp, 0.3, 0)
+    result = cv2.addWeighted(undist, 1, orig_perspective_lane, 0.3, 0)
     if DEBUG_PROCESS:
         plt.imshow(result)
         plt.show()
@@ -550,8 +561,7 @@ def process_image(image):
 
 
 def main():
-    np.set_printoptions(threshold=np.nan)
-
+#    np.set_printoptions(threshold=np.nan)
     if TEST_IMAGE:
         image = cv2.imread(TEST_IMAGE)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
