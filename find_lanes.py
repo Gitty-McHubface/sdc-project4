@@ -13,7 +13,7 @@ DEBUG_THRESH = False
 DEBUG_FIT = False
 DEBUG_PROCESS = False
 
-IN_VIDEO = './project_video.mp4'
+IN_VIDEO = './challenge_video.mp4'
 OUT_VIDEO = './processed_video.mp4'
 CALIBRATION_DIR = './camera_cal'
 
@@ -33,7 +33,7 @@ WARP_OVERHEAD_DST = np.float32([[960, 0],
                                 [320, 720],
                                 [320, 0]])
 
-MASK_ROI = [(650, 400), (1200, 720), (100, 720), (650, 400)]
+MASK_ROI = np.array([[(650, 400), (1200, 720), (100, 720), (650, 400)]], dtype=np.int32)
 
 def calibrate_camera(calibration_dir, file_pattern='calibration*.jpg',
                      row_corners=6, col_corners=9):
@@ -452,23 +452,34 @@ def find_lane_lines(overhead_image, left_line, right_line):
     x_size = overhead_image.shape[1]
     plot_y = np.linspace(0, y_size - 1, y_size)
 
-    # X values of each line
-    left_line.recent_x_fitted.append(left_line.current_fit[0] * plot_y ** 2 +
-                                     left_line.current_fit[1] * plot_y +
-                                     left_line.current_fit[2])
-    right_line.recent_x_fitted.append(right_line.current_fit[0] * plot_y ** 2 +
-                                      right_line.current_fit[1] * plot_y +
-                                      right_line.current_fit[2])
-
-    left_line.best_x = np.average(left_line.recent_x_fitted, axis=0)
-    right_line.best_x = np.average(right_line.recent_x_fitted, axis=0)
+    left_x_fitted = ( left_line.current_fit[0] * plot_y ** 2 +
+                      left_line.current_fit[1] * plot_y +
+                      left_line.current_fit[2] )
+    right_x_fitted = ( right_line.current_fit[0] * plot_y ** 2 +
+                       right_line.current_fit[1] * plot_y +
+                       right_line.current_fit[2] )
 
     if DEBUG_FIT:
-        plt.plot(left_line.best_x, plot_y, color='yellow')
-        plt.plot(right_line.best_x, plot_y, color='yellow')
+        plt.plot(left_x_fitted, plot_y, color='yellow')
+        plt.plot(right_x_fitted, plot_y, color='yellow')
         plt.xlim(0, x_size)
         plt.ylim(y_size, 0)
         plt.show()
+
+    dist_top = right_x_fitted[0] - left_x_fitted[0]
+    dist_bot = right_x_fitted[y_size - 1] - left_x_fitted[y_size - 1]
+
+    if left_x_fitted[0] > right_x_fitted[0] or abs(dist_top - dist_bot) > 200:
+        left_line.detected = False
+        right_line.detected = False
+        return
+
+    # X values of each line
+    left_line.recent_x_fitted.append(left_x_fitted)
+    right_line.recent_x_fitted.append(right_x_fitted)
+
+    left_line.best_x = np.average(left_line.recent_x_fitted, axis=0)
+    right_line.best_x = np.average(right_line.recent_x_fitted, axis=0)
 
     left_line.best_fit = np.polyfit(plot_y, left_line.best_x, 2)
     right_line.best_fit = np.polyfit(plot_y, right_line.best_x, 2)
@@ -493,6 +504,9 @@ def draw_overhead_lane(overhead_image, left_line, right_line):
     overhead_zero = np.zeros_like(overhead_image).astype(np.uint8)
     overhead_color = np.dstack((overhead_zero, overhead_zero, overhead_zero))
 
+    if not left_line.best_x.size or right_line.best_x.size:
+        return overhead_color
+    
     # Recast the x and y points into usable format for cv2.fillPoly()
     pts_left = np.array([np.transpose(np.vstack([left_line.best_x, plot_y]))])
     pts_right = np.array([np.flipud(np.transpose(np.vstack([right_line.best_x,
@@ -500,7 +514,10 @@ def draw_overhead_lane(overhead_image, left_line, right_line):
     pts = np.hstack((pts_left, pts_right))
 
     # Draw the lane onto the warped blank image
-    cv2.fillPoly(overhead_color, np.int_([pts]), (0, 255, 0))
+    if not left_line.detected or not right_line.detected:
+        cv2.fillPoly(overhead_color, np.int_([pts]), (0, 0, 255))
+    else:
+        cv2.fillPoly(overhead_color, np.int_([pts]), (0, 255, 0))
 
     return overhead_color
 
@@ -521,37 +538,42 @@ def process_image(image):
         else:
             mtx, dist = calibrate_camera(CALIBRATION_DIR)
 
+    # Undistort the original image
     undist = cv2.undistort(image, mtx, dist, None, mtx)
     if DEBUG_PROCESS:
         plt.imshow(undist)
         plt.show()
 
+    # Find pixels belonging to lane lines using color and gradient binary thresholding
     threshold_edges = image_threshold(undist)
     if DEBUG_PROCESS:
         plt.imshow(threshold_edges, cmap='gray')
         print('threshold edges')
         plt.show()
 
-    roi = np.array([MASK_ROI], dtype=np.int32)
-    masked_edges = region_of_interest(threshold_edges, roi)
+    # Mask detected pixels outside of region of interest
+    masked_edges = region_of_interest(threshold_edges, MASK_ROI)
     if DEBUG_PROCESS:
         print('masked edges')
         plt.imshow(masked_edges, cmap='gray')
         plt.show()
 
+    # Warp the image to give overhead perspective
     overhead_edges = warp(masked_edges, src=WARP_ORIG_SRC, dst=WARP_OVERHEAD_DST)
     if DEBUG_PROCESS:
         plt.imshow(overhead_edges, cmap='gray')
         plt.show()
 
+    # Try to detect lane lines in the overhead image
     find_lane_lines(overhead_edges, left_line, right_line)
 
+    # Draw the lane in a blank image
     overhead_lane = draw_overhead_lane(overhead_edges, left_line, right_line)
 
     # Warp the overhead blank back to original image space
     orig_perspective_lane = warp(overhead_lane, src=WARP_OVERHEAD_DST, dst=WARP_ORIG_SRC)
 
-    # Combine the result with the original image
+    # Combine the lane with the undistorted original image
     result = cv2.addWeighted(undist, 1, orig_perspective_lane, 0.3, 0)
     if DEBUG_PROCESS:
         plt.imshow(result)
@@ -567,7 +589,7 @@ def main():
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         process_image(image)
     else:
-        clip1 = VideoFileClip(IN_VIDEO)#.subclip(15, 30)
+        clip1 = VideoFileClip(IN_VIDEO)#.subclip(19, 26)
         out_clip = clip1.fl_image(process_image)
         out_clip.write_videofile(OUT_VIDEO, audio=False)
 
