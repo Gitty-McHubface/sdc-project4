@@ -58,6 +58,8 @@ I then used the output `objpoints` and `imgpoints` to compute the camera calibra
 |-------------------------------------------------------------|-------------------------------------------------------------|
 | <img src="./examples/distorted_vid_frame.png" width="400"/> | <img src="./examples/corrected_vid_frame.png" width="400"/> |
 
+### Gradient and Color Channel Thresholding
+
 | Sobel X                                              |
 |------------------------------------------------------|
 | <img src="./examples/gradx_thresh.png" width="400"/> |
@@ -82,6 +84,8 @@ I then used the output `objpoints` and `imgpoints` to compute the camera calibra
 |---------------------------------------------------------|
 | <img src="./examples/combined_thresh.png" width="400"/> |
 
+### Lane Line Search
+
 | Masked                                                  |
 |---------------------------------------------------------|
 | <img src="./examples/masked_combined.png" width="400"/> |
@@ -97,6 +101,8 @@ I then used the output `objpoints` and `imgpoints` to compute the camera calibra
 | Margin Search                                         |
 |-------------------------------------------------------|
 | <img src="./examples/margin_search.png" width="400"/> |
+
+### Draw Lane
 
 | Draw Lane (Overhead Perspective)                           |
 |------------------------------------------------------------|
