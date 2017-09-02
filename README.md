@@ -59,7 +59,7 @@ I then used the output `objpoints` and `imgpoints` to compute the camera calibra
 
 | Distorted  | Corrected  |
 |------------|---|
-| <img src="./examples/distorted_calib.png" width="400"/> <br> <img src="./examples/distorted_calib.png" width="400"/> | <img src="./examples/corrected_calib_2.png" width="400"/> <br> <img src="./examples/corrected_calib_2.png" width="400"/> |
+| <img src="./examples/distorted_calib.png" width="400"/> <br> <img src="./examples/distorted_calib_2.png" width="400"/> | <img src="./examples/corrected_calib.png" width="400"/> <br> <img src="./examples/corrected_calib_2.png" width="400"/> |
 
 
 ### Pipeline (single images)
