@@ -1,9 +1,3 @@
-## Writeup Template
-
-### You can use this file as a template for your writeup if you want to submit it as a markdown file, but feel free to use some other method and submit a pdf if you prefer.
-
----
-
 # Advanced Lane Finding Project
 
 [//]: # (Image References)
@@ -25,7 +19,6 @@
 [magnitude_and_direction]: ./examples/magnitude_and_direction.png "Magnitude & direction thresholding"
 [red_thresh]: ./examples/red_thresh.png "Red channel thresholding"
 [combined_thresh]: ./examples/combined_thresh.png "Combined thresholding"
-[combined_thresh]: ./examples/combined_thresh.png "Combined thresholding"
 [masked_combined]: ./examples/masked_combined.png "Masked"
 [overhead_masked]: ./examples/overhead_masked.png "Overhead masked"
 [window_search]: ./examples/window_search.png "Window search"
@@ -34,9 +27,7 @@
 [overhead_draw_lane]: ./examples/overhead_draw_lane.png "Overhead draw lane"
 [result]: ./examples/result.png "Pipeline result"
 
-
-The goals / steps of this project are the following:
-
+## Goals
 * Compute the camera calibration matrix and distortion coefficients given a set of chessboard images.
 * Apply a distortion correction to raw images.
 * Use color transforms, gradients, etc., to create a thresholded binary image.
@@ -45,9 +36,6 @@ The goals / steps of this project are the following:
 * Determine the curvature of the lane and vehicle position with respect to center.
 * Warp the detected lane boundaries back onto the original image.
 * Output visual display of the lane boundaries and numerical estimation of lane curvature and vehicle position.
-
-
-## [Rubric](https://review.udacity.com/#!/rubrics/571/view) Points
 
 ### Here I will consider the rubric points individually and describe how I addressed each point in my implementation.  
 
@@ -69,7 +57,7 @@ I start by preparing "object points", which will be the (x, y, z) coordinates of
 
 I then used the output `objpoints` and `imgpoints` to compute the camera calibration and distortion coefficients using the `cv2.calibrateCamera()` function.  I applied this distortion correction to the test image using the `cv2.undistort()` function and obtained this result: 
 
-![alt text][distorted_calib]
+![alt text][distorted_calib] ![alt text][distorted_calib_2]
 
 ### Pipeline (single images)
 
