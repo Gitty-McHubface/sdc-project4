@@ -84,15 +84,17 @@ I then used the output `objpoints` and `imgpoints` to compute the camera calibra
 |---------------------------------------------------------|
 | <img src="./examples/combined_thresh.png" width="400"/> |
 
+### Perspective Transform
+
+| Straight Lines (Original Perspective)                      | Straight Lines (Overhead Perspective)                     |
+|------------------------------------------------------------|-----------------------------------------------------------|
+| <img src="./examples/straight_orig_perspective.png" width="400"/> | <img src="./examples/straight_overhead_perspective.png" width="400"/> |
+
+| Masked                                                  | Overhead                                                |
+|---------------------------------------------------------|---------------------------------------------------------|
+| <img src="./examples/masked_combined.png" width="400"/> | <img src="./examples/overhead_masked.png" width="400"/> |
+
 ### Lane Line Search
-
-| Masked                                                  |
-|---------------------------------------------------------|
-| <img src="./examples/masked_combined.png" width="400"/> |
-
-| Perspective Transform                                   |
-|---------------------------------------------------------|
-| <img src="./examples/overhead_masked.png" width="400"/> |
 
 | Window Search                                         |
 |-------------------------------------------------------|
@@ -119,13 +121,10 @@ I then used the output `objpoints` and `imgpoints` to compute the camera calibra
 #### 1. Provide an example of a distortion-corrected image.
 
 To demonstrate this step, I will describe how I apply the distortion correction to one of the test images like this one:
-![alt text][corrected_calib]
 
 #### 2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image.  Provide an example of a binary image result.
 
 I used a combination of color and gradient thresholds to generate a binary image (thresholding steps at lines # through # in `another_file.py`).  Here's an example of my output for this step.  (note: this is not actually from one of the test images)
-
-![alt text][image3]
 
 #### 3. Describe how (and identify where in your code) you performed a perspective transform and provide an example of a transformed image.
 
@@ -155,13 +154,11 @@ This resulted in the following source and destination points:
 
 I verified that my perspective transform was working as expected by drawing the `src` and `dst` points onto a test image and its warped counterpart to verify that the lines appear parallel in the warped image.
 
-![alt text][image4]
 
 #### 4. Describe how (and identify where in your code) you identified lane-line pixels and fit their positions with a polynomial?
 
 Then I did some other stuff and fit my lane lines with a 2nd order polynomial kinda like this:
 
-![alt text][image5]
 
 #### 5. Describe how (and identify where in your code) you calculated the radius of curvature of the lane and the position of the vehicle with respect to center.
 
@@ -171,9 +168,6 @@ I did this in lines # through # in my code in `my_other_file.py`
 
 I implemented this step in lines # through # in my code in `yet_another_file.py` in the function `map_lane()`.  Here is an example of my result on a test image:
 
-![alt text][image6]
-
----
 
 ### Pipeline (video)
 
