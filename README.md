@@ -9,15 +9,31 @@
 [//]: # (Image References)
 
 [distorted_calib]: ./examples/distorted_calib.png "Distorted calibration image"
-[distorted_calib_2]: ./examples/distorted_calib_2.png "Distorted calibration image"
 [corrected_calib]: ./examples/corrected_calib.png "Distortion corrected calibration image"
+[distorted_calib_2]: ./examples/distorted_calib_2.png "Distorted calibration image"
 [corrected_calib_2]: ./examples/corrected_calib_2.png "Distortion corrected calibration image"
-[image2]: ./test_images/test1.jpg "Road Transformed"
-[image3]: ./examples/binary_combo_example.jpg "Binary Example"
-[image4]: ./examples/warped_straight_lines.jpg "Warp Example"
-[image5]: ./examples/color_fit_lines.jpg "Fit Visual"
-[image6]: ./examples/example_output.jpg "Output"
-[video1]: ./project_video.mp4 "Video"
+[distorted_vid_frame]: ./examples/distorted_vid_frame.png "Distorted video frame"
+[corrected_vid_frame]: ./examples/corrected_vid_frame.png "Corrected video frame"
+[straight_orig_perspective]: ./examples/straight_orig_perspective.png "Straight lines"
+[straight_overhead_perspective]: ./examples/straight_overhead_perspective.png "Straight lines overhead perspective"
+[gradx_thresh]: ./examples/gradx_thresh.png "x-direction gradient thresholding"
+[saturation_thresh]: ./examples/saturation_thresh.png "Image saturation thresholding"
+[hue_thresh]: ./examples/hue_thresh.png "Image hue thresholding"
+[hue_and_saturation]: ./examples/hue_and_saturation.png "Hue & saturation thresholding"
+[magnitude_thresh]: ./examples/grad_magnitude_thresh.png "Image gradient magnitude thresholding"
+[direction_thresh]: ./examples/grad_direction_thresh.png "Image gradient direction thresholding"
+[magnitude_and_direction]: ./examples/magnitude_and_direction.png "Magnitude & direction thresholding"
+[red_thresh]: ./examples/red_thresh.png "Red channel thresholding"
+[combined_thresh]: ./examples/combined_thresh.png "Combined thresholding"
+[combined_thresh]: ./examples/combined_thresh.png "Combined thresholding"
+[masked_combined]: ./examples/masked_combined.png "Masked"
+[overhead_masked]: ./examples/overhead_masked.png "Overhead masked"
+[window_search]: ./examples/window_search.png "Window search"
+[margin_search]: ./examples/margin_search.png "Margin search"
+[original_draw_lane]: ./examples/original_draw_lane.png "Original draw lane"
+[overhead_draw_lane]: ./examples/overhead_draw_lane.png "Overhead draw lane"
+[result]: ./examples/result.png "Pipeline result"
+
 
 The goals / steps of this project are the following:
 
@@ -30,15 +46,6 @@ The goals / steps of this project are the following:
 * Warp the detected lane boundaries back onto the original image.
 * Output visual display of the lane boundaries and numerical estimation of lane curvature and vehicle position.
 
-[//]: # (Image References)
-
-[image1]: ./examples/undistort_output.png "Undistorted"
-[image2]: ./test_images/test1.jpg "Road Transformed"
-[image3]: ./examples/binary_combo_example.jpg "Binary Example"
-[image4]: ./examples/warped_straight_lines.jpg "Warp Example"
-[image5]: ./examples/color_fit_lines.jpg "Fit Visual"
-[image6]: ./examples/example_output.jpg "Output"
-[video1]: ./project_video.mp4 "Video"
 
 ## [Rubric](https://review.udacity.com/#!/rubrics/571/view) Points
 
@@ -62,14 +69,14 @@ I start by preparing "object points", which will be the (x, y, z) coordinates of
 
 I then used the output `objpoints` and `imgpoints` to compute the camera calibration and distortion coefficients using the `cv2.calibrateCamera()` function.  I applied this distortion correction to the test image using the `cv2.undistort()` function and obtained this result: 
 
-![alt text][image1]
+![alt text][distorted_calib]
 
 ### Pipeline (single images)
 
 #### 1. Provide an example of a distortion-corrected image.
 
 To demonstrate this step, I will describe how I apply the distortion correction to one of the test images like this one:
-![alt text][image2]
+![alt text][corrected_calib]
 
 #### 2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image.  Provide an example of a binary image result.
 
