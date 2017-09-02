@@ -78,7 +78,7 @@ I then used the output `objpoints` and `imgpoints` to compute the camera calibra
 |-----------------------------------------------------------------|
 | <img src="./examples/magnitude_and_direction.png" width="400"/> |
 
-| Combined                                                |
+| Combined Thresholds                                     |
 |---------------------------------------------------------|
 | <img src="./examples/combined_thresh.png" width="400"/> |
 
@@ -93,6 +93,22 @@ I then used the output `objpoints` and `imgpoints` to compute the camera calibra
 | Window Search                                         |
 |-------------------------------------------------------|
 | <img src="./examples/window_search.png" width="400"/> |
+
+| Margin Search                                         |
+|-------------------------------------------------------|
+| <img src="./examples/margin_search.png" width="400"/> |
+
+| Draw Lane (Overhead Perspective)                           |
+|------------------------------------------------------------|
+| <img src="./examples/overhead_draw_lane.png" width="400"/> |
+
+| Draw Lane (Original Perspective)                           |
+|------------------------------------------------------------|
+| <img src="./examples/original_draw_lane.png" width="400"/> |
+
+| Result                                         |
+|------------------------------------------------|
+| <img src="./examples/result.png" width="400"/> |
 
 #### 1. Provide an example of a distortion-corrected image.
 
