@@ -53,7 +53,7 @@ For each calibration image, I convert the image to grayscale and use the `cv2.fi
 
 ### Distortion Correction
 
-The first step of the pipeline corrects for camera distortion. This is donen using using either computed or save camera distortion coefficients and transform matrix using the `cv2.undistort()` function.
+The first step of the pipeline corrects for camera distortion. This is performed using using either computed or previously saved camera distortion coefficients and the transform matrix using the `cv2.undistort()` function.
 
 | Distorted                                                   | Corrected                                                   |
 |-------------------------------------------------------------|-------------------------------------------------------------|
@@ -97,6 +97,8 @@ At this stage, the pipeline computes a binary thresholded image that contains th
 
 ### Perspective Transform
 
+The pipeline then performs a perspective transform to give an overhead view. The source and destination points for this transform can be seen below.
+
 | Source        | Destination   | 
 |:--------------|:--------------| 
 | 684, 448      | 320, 0        | 
@@ -104,9 +106,20 @@ At this stage, the pipeline computes a binary thresholded image that contains th
 | 1126, 720     | 960, 720      |
 | 595, 448      | 960, 0        |
 
+The source points were chosen by examining the line pixel positions on an image of the car driving down a straight road. That image and the perspective transorm can be seen below.
+
 | Straight Lines (Original Perspective)                      | Straight Lines (Overhead Perspective)                     |
 |------------------------------------------------------------|-----------------------------------------------------------|
 | <img src="./examples/straight_orig_perspective.png" width="400"/> | <img src="./examples/straight_overhead_perspective.png" width="400"/> |
+
+The pipeline masks the binary image from the pervious section and performs an overhead perspective transform:
+
+| Mask Region |
+|-------------|
+| 650, 400    |
+| 1200, 720   |
+| 100, 720    |
+| 650, 400    |
 
 | Masked                                                  | Overhead                                                |
 |---------------------------------------------------------|---------------------------------------------------------|
@@ -114,9 +127,17 @@ At this stage, the pipeline computes a binary thresholded image that contains th
 
 ### Lane Line Search
 
+If both lane lines were not previously detected, the overhead binary image is searched using sliding windows. The position of the bottom windows (one for each lane) is determined by computing the maximum of a histogram of activated pixels in the x-direction over the lower half of the image. I limit the range of this search to 220-420 for the left line and 860-1060 for the right line.
+
+Once the base of each line is found. The position of the next window for each line is determined by computing the mean position of the activated pixels found within the previous window. This process repeats until all windows have been placed and the pixels contained within them are returned. The pipline then uses the `numpy.polyfit()` function to fit a second order polynomial to the detected lane pixels. An example can be seen below.
+
 | Window Search                                         |
 |-------------------------------------------------------|
 | <img src="./examples/window_search.png" width="400"/> |
+
+At this point, a sanity check is performed to verify that these polynomials represent lane lines that could be found on the road.
+
+If both lane lines were previously detected, the pixels belonging to each lane are found by searching within a margin around the previous fit. An example can be seen below.
 
 | Margin Search                                         |
 |-------------------------------------------------------|
