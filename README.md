@@ -38,11 +38,10 @@
 * Output visual display of the lane boundaries and numerical estimation of lane curvature and vehicle position.
 
 ## Camera Calibration
-The code for this step is contained in the first code cell of the IPython notebook located in "./examples/example.ipynb" (or in lines # through # of the file called `some_file.py`).  
 
-I start by preparing "object points", which will be the (x, y, z) coordinates of the chessboard corners in the world. Here I am assuming the chessboard is fixed on the (x, y) plane at z=0, such that the object points are the same for each calibration image.  Thus, `objp` is just a replicated array of coordinates, and `objpoints` will be appended with a copy of it every time I successfully detect all chessboard corners in a test image.  `imgpoints` will be appended with the (x, y) pixel position of each of the corners in the image plane with each successful chessboard detection.  
+I start by preparing "object points", which will be the (x, y, z) coordinates of the chessboard corners in the world. Here I am assuming the chessboard is fixed on the (x, y) plane at z=0. The object points are the known coordinates for the corners of a 9x6 chessboard and are the same for each calibration image.
 
-I then used the output `objpoints` and `imgpoints` to compute the camera calibration and distortion coefficients using the `cv2.calibrateCamera()` function.  I applied this distortion correction to the test image using the `cv2.undistort()` function and obtained this result: 
+For each calibration image, I convert the image to grayscale and use the `cv2.findChessboardCorners()` function to detect the "image points" which are the (x, y) position of each of the corners in the image plane. I  used the output object points and image points to compute the distortion coefficients and transform matrix using the `cv2.calibrateCamera()` function.  I applied this distortion correction to two of the calibration images using the `cv2.undistort()` function and obtained this result: 
 
 | Distorted                                                 | Corrected                                                 |
 |-----------------------------------------------------------|-----------------------------------------------------------|
@@ -54,13 +53,17 @@ I then used the output `objpoints` and `imgpoints` to compute the camera calibra
 
 ### Distortion Correction
 
+The first step of the pipeline corrects for camera distortion. This is donen using using either computed or save camera distortion coefficients and transform matrix using the `cv2.undistort()` function.
+
 | Distorted                                                   | Corrected                                                   |
 |-------------------------------------------------------------|-------------------------------------------------------------|
 | <img src="./examples/distorted_vid_frame.png" width="400"/> | <img src="./examples/corrected_vid_frame.png" width="400"/> |
 
 ### Gradient and Color Channel Thresholding
 
-| Sobel X (3x3, 30 - 180)                              |
+At this stage, the pipeline computes a binary thresholded image that contains the lane lines. The color channels, gradients and threshold ranges were determined experimentally to capture as much information about the lane lines as possible while filtering out everything else.
+
+| Gradient-X (3x3, 30 - 180)                           |
 |------------------------------------------------------|
 | <img src="./examples/gradx_thresh.png" width="400"/> |
 
@@ -72,7 +75,7 @@ I then used the output `objpoints` and `imgpoints` to compute the camera calibra
 |------------------------------------------------------------|
 | <img src="./examples/hue_and_saturation.png" width="400"/> |
 
-| Magnitude (3x3, 60-255)                                       | Direction (3x3, 0.9-1.3)                       |
+| Gradient Magnitude (3x3, 60-255)                              | Gradient Direction (3x3, 0.9-1.3)              |
 |---------------------------------------------------------------|------------------------------------------------|
 | <img src="./examples/grad_magnitude_thresh.png" width="400"/> | <img src="./examples/grad_direction_thresh.png" width="400"/> |
 
@@ -80,17 +83,17 @@ I then used the output `objpoints` and `imgpoints` to compute the camera calibra
 |-----------------------------------------------------------------|
 | <img src="./examples/magnitude_and_direction.png" width="400"/> |
 
-| Red (220-255)                                        |
+| Red Color Channel (220-255)                                        |
 |------------------------------------------------------|
 | <img src="./examples/red_thresh.png" width="400"/>   |
 
-| Green (200-255)                                        |
+| Green Color Channel (200-255)                                        |
 |--------------------------------------------------------|
 | <img src="./examples/green_thresh.png" width="400"/>   |
 
-| Combined Thresholds (gradx \| (hue & sat) \| r \| g \| (magnitude & direction)) |
-|-----------------------------------------------------------------------------|
-| <img src="./examples/combined_thresh.png" width="400"/>                     |
+| Combined Thresholds (gradx \| (hue & saturation) \| red \| green \| (magnitude & direction)) |
+|----------------------------------------------------------------------------------------------|
+| <img src="./examples/combined_thresh.png" width="400"/>                                      |
 
 ### Perspective Transform
 
