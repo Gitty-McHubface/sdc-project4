@@ -1,3 +1,5 @@
+# Note: Various functions in this file are modified versions of code from the Udacity SDC course.
+
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 from moviepy.editor import VideoFileClip
