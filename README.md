@@ -60,11 +60,11 @@ I then used the output `objpoints` and `imgpoints` to compute the camera calibra
 
 ### Gradient and Color Channel Thresholding
 
-| Sobel X                                              |
+| Sobel X (3x3, 30 - 180)                              |
 |------------------------------------------------------|
 | <img src="./examples/gradx_thresh.png" width="400"/> |
 
-| Hue                                                | Saturation                                                |
+| Hue (16-30)                                        | Saturation (90-255)                                       |
 |----------------------------------------------------|-----------------------------------------------------------|
 | <img src="./examples/hue_thresh.png" width="400"/> | <img src="./examples/saturation_thresh.png" width="400"/> |
 
@@ -72,7 +72,7 @@ I then used the output `objpoints` and `imgpoints` to compute the camera calibra
 |------------------------------------------------------------|
 | <img src="./examples/hue_and_saturation.png" width="400"/> |
 
-| Magnitude                                                     | Direction                                      |
+| Magnitude (3x3, 60-255)                                       | Direction (3x3, 0.9-1.3)                       |
 |---------------------------------------------------------------|------------------------------------------------|
 | <img src="./examples/grad_magnitude_thresh.png" width="400"/> | <img src="./examples/grad_direction_thresh.png" width="400"/> |
 
@@ -80,11 +80,26 @@ I then used the output `objpoints` and `imgpoints` to compute the camera calibra
 |-----------------------------------------------------------------|
 | <img src="./examples/magnitude_and_direction.png" width="400"/> |
 
-| Combined Thresholds                                     |
-|---------------------------------------------------------|
-| <img src="./examples/combined_thresh.png" width="400"/> |
+| Red (220-255)                                        |
+|------------------------------------------------------|
+| <img src="./examples/red_thresh.png" width="400"/>   |
+
+| Green (200-255)                                        |
+|--------------------------------------------------------|
+| <img src="./examples/green_thresh.png" width="400"/>   |
+
+| Combined Thresholds (gradx \| (hue & sat) \| r \| g \| (magnitude & direction)) |
+|-----------------------------------------------------------------------------|
+| <img src="./examples/combined_thresh.png" width="400"/>                     |
 
 ### Perspective Transform
+
+| Source        | Destination   | 
+|:--------------|:--------------| 
+| 684, 448      | 320, 0        | 
+| 188, 720      | 320, 720      |
+| 1126, 720     | 960, 720      |
+| 595, 448      | 960, 0        |
 
 | Straight Lines (Original Perspective)                      | Straight Lines (Overhead Perspective)                     |
 |------------------------------------------------------------|-----------------------------------------------------------|
