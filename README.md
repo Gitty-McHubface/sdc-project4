@@ -37,6 +37,10 @@
 * Warp the detected lane boundaries back onto the original image.
 * Output visual display of the lane boundaries and numerical estimation of lane curvature and vehicle position.
 
+## Files
+* find_lanes.py - Python module containing code to detect and draw lanes on a video or image. 
+* project_video.mp4 - The video output produced by find_lanes.py
+
 ## Camera Calibration
 
 I start by preparing "object points", which will be the (x, y, z) coordinates of the chessboard corners in the world. Here I am assuming the chessboard is fixed on the (x, y) plane at z=0. The object points are the known coordinates for the corners of a 9x6 chessboard and are the same for each calibration image.
@@ -169,6 +173,4 @@ Here's a [link to my video result](./project_video.mp4)
 
 ## Discussion
 
-#### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
-
-Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.  
+Getting the pipeline to work against the project video was quite easy. However, when I ran this pipeline againts either challenge video, I found that the threshold values that I picked did not do a good job of detecting lane lines with those road surfaces and lighting conditions. I also found that the pipeline detected shadows and patched road surfaces as lane lines. It would require some experimentation with those videos to see if I could get my pipeline to generalize well.
