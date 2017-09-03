@@ -51,6 +51,10 @@ For each calibration image, I convert the image to grayscale and use the `cv2.fi
 
 ## Pipeline 
 
+### Input
+
+<img src="./examples/distorted_vid_frame.png" width="600"/>
+
 ### Distortion Correction
 
 The first step of the pipeline corrects for camera distortion. This is performed using using either computed or previously saved camera distortion coefficients and the transform matrix using the `cv2.undistort()` function.
@@ -135,88 +139,35 @@ Once the base of each line is found. The position of the next window for each li
 |-------------------------------------------------------|
 | <img src="./examples/window_search.png" width="400"/> |
 
-At this point, a sanity check is performed to verify that these polynomials represent lane lines that could be found on the road.
-
 If both lane lines were previously detected, the pixels belonging to each lane are found by searching within a margin around the previous fit. An example can be seen below.
 
 | Margin Search                                         |
 |-------------------------------------------------------|
 | <img src="./examples/margin_search.png" width="400"/> |
 
+At this point, a sanity check is performed to verify that these polynomials represent lane lines that could be found on the road. First, it checks that the x-position of the top of the left line is not greater than the x-position of the top of the right line. Second, it checks that the distance between the two lines at the top and bottom of the image does not vary by more than 200 pixels.
+
+If the sanity check succeeds, the x-positions are stored for each fitted line and an average fit over the past five frames is computed to smooth the output lane position. If the check fails or no pixels were detetected, the last good line fit is used for up to five frames. After five missed frames, the line is reset and a sliding window search will be used.
+
 ### Draw Lane
 
-| Draw Lane (Overhead Perspective)                           |
-|------------------------------------------------------------|
-| <img src="./examples/overhead_draw_lane.png" width="400"/> |
+The pipeline draws the lane in the overhead perspective and then transforms it back to the original perspective.
 
-| Draw Lane (Original Perspective)                           |
-|------------------------------------------------------------|
-| <img src="./examples/original_draw_lane.png" width="400"/> |
+|  Overhead                                                  |  Original                |
+|------------------------------------------------------------|--------------------------|
+| <img src="./examples/overhead_draw_lane.png" width="400"/> | <img src="./examples/original_draw_lane.png" width="400"/> |
 
-| Result                                         |
-|------------------------------------------------|
-| <img src="./examples/result.png" width="400"/> |
+### Output
 
-#### 1. Provide an example of a distortion-corrected image.
+The lane is combined with the original image corrected for camera distortion. The line curvature and car offset from the center of the lane are computed using the fitted lines and added to the image:
 
-To demonstrate this step, I will describe how I apply the distortion correction to one of the test images like this one:
+<img src="./examples/result.png" width="600"/>
 
-#### 2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image.  Provide an example of a binary image result.
-
-I used a combination of color and gradient thresholds to generate a binary image (thresholding steps at lines # through # in `another_file.py`).  Here's an example of my output for this step.  (note: this is not actually from one of the test images)
-
-#### 3. Describe how (and identify where in your code) you performed a perspective transform and provide an example of a transformed image.
-
-The code for my perspective transform includes a function called `warper()`, which appears in lines 1 through 8 in the file `example.py` (output_images/examples/example.py) (or, for example, in the 3rd code cell of the IPython notebook).  The `warper()` function takes as inputs an image (`img`), as well as source (`src`) and destination (`dst`) points.  I chose the hardcode the source and destination points in the following manner:
-
-```python
-src = np.float32(
-    [[(img_size[0] / 2) - 55, img_size[1] / 2 + 100],
-    [((img_size[0] / 6) - 10), img_size[1]],
-    [(img_size[0] * 5 / 6) + 60, img_size[1]],
-    [(img_size[0] / 2 + 55), img_size[1] / 2 + 100]])
-dst = np.float32(
-    [[(img_size[0] / 4), 0],
-    [(img_size[0] / 4), img_size[1]],
-    [(img_size[0] * 3 / 4), img_size[1]],
-    [(img_size[0] * 3 / 4), 0]])
-```
-
-This resulted in the following source and destination points:
-
-| Source        | Destination   | 
-|:-------------:|:-------------:| 
-| 585, 460      | 320, 0        | 
-| 203, 720      | 320, 720      |
-| 1127, 720     | 960, 720      |
-| 695, 460      | 960, 0        |
-
-I verified that my perspective transform was working as expected by drawing the `src` and `dst` points onto a test image and its warped counterpart to verify that the lines appear parallel in the warped image.
-
-
-#### 4. Describe how (and identify where in your code) you identified lane-line pixels and fit their positions with a polynomial?
-
-Then I did some other stuff and fit my lane lines with a 2nd order polynomial kinda like this:
-
-
-#### 5. Describe how (and identify where in your code) you calculated the radius of curvature of the lane and the position of the vehicle with respect to center.
-
-I did this in lines # through # in my code in `my_other_file.py`
-
-#### 6. Provide an example image of your result plotted back down onto the road such that the lane area is identified clearly.
-
-I implemented this step in lines # through # in my code in `yet_another_file.py` in the function `map_lane()`.  Here is an example of my result on a test image:
-
-
-### Pipeline (video)
-
-#### 1. Provide a link to your final video output.  Your pipeline should perform reasonably well on the entire project video (wobbly lines are ok but no catastrophic failures that would cause the car to drive off the road!).
+## Video
 
 Here's a [link to my video result](./project_video.mp4)
 
----
-
-### Discussion
+## Discussion
 
 #### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
 
