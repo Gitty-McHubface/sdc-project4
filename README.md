@@ -38,7 +38,7 @@
 * Output visual display of the lane boundaries and numerical estimation of lane curvature and vehicle position.
 
 ## Files
-* find_lanes.py - Python module containing code to detect and draw lanes on a video or image. 
+* find_lane.py - Python module containing code to detect and draw lanes on a video or image. 
 * project_video.mp4 - The video output produced by find_lanes.py
 
 ## Camera Calibration
